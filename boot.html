@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Boot - NoxOS Docs</title>
+<link rel="stylesheet" href="assets/style.css"></head>
+<body>
+<header class="site"><div class="bar">
+<a class="brand" href="index.html"><svg class="logo" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><defs><mask id="m"><rect width="32" height="32" fill="white"/><circle cx="20" cy="14" r="9" fill="black"/></mask></defs><circle cx="14" cy="16" r="11" fill="url(#g)" mask="url(#m"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4b5fd"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg><span>NoxOS&nbsp;Docs</span></a>
+<nav class="links"><a href="overview.html" class="">Overview</a><a href="architecture.html" class="">Architecture</a><a href="boot.html" class="on">Boot</a><a href="build.html" class="">Build</a><a href="design-system.html" class="">Design System</a><a href="status.html" class="">Status</a><a href="milestones.html" class="">Milestones</a><a href="roadmap.html" class="">Roadmap</a><a href="security.html" class="">Security</a><a href="known-limits.html" class="">Known Limits</a><a href="hardware.html" class="">Hardware Deps</a><a href="analysis.html" class="">Analysis</a><a href="privacy.html" class="">Privacy</a></nav>
+</div></header>
+<main>
+<article class="prose"><h1>Boot integration status</h1>
+<h2>Emulator boot contract (QEMU virt) — VERIFIED</h2>
+<p>The v0.2 kernel boots via:</p>
+<pre><code class="language-sh">qemu-system-aarch64 -M virt -cpu cortex-a53 -m 512M \
+    -nic none -nographic -kernel target/aarch64-unknown-none/debug/noxos
+</code></pre>
+<p>Verified boot facts (QEMU 10.0, <code>hw/arm/boot.c</code> + empirical):
+- <code>-kernel &lt;ELF&gt;</code> loads the ELF at its linked addresses and enters at the
+  ELF entry point. The CPU is left at EL1 in the <strong>Secure</strong> state; DAIF
+  is masked; MMU and caches are off.
+- For ELF boots QEMU does <strong>not</strong> pass the DTB address in x0 (x0 = 0).
+  QEMU installs its generated FDT at the base of RAM (0x40000000) only
+  when the kernel image leaves room: the install is skipped when the FDT
+  (1 MiB on virt) does not fit below <code>image_low_addr</code>. Linking the
+  kernel at 0x40200000 leaves 2 MiB free, so the FDT lands at
+  0x40000000. The boot code honours an x0 pointer when present and
+  otherwise scans RAM (page steps over the first/last 32 MiB) for the
+  <code>0xD00DFEED</code> magic.
+- QEMU's generated FDT declares a 1 MiB totalsize (allocation padding
+  included); the parser bounds-checks every access against it.
+- The GICv2 interrupt acknowledge path returns 1022 ("no visible
+  interrupt") for Group 1 interrupts taken from the Secure state without
+  GICC_CTLR.AckCtl — the bring-up therefore uses Group 0 (see
+  <code>kernel/src/interrupts/gic.rs</code>).
+- The generic timer frequency is read from <code>CNTFRQ_EL0</code> at runtime
+  (62500000 Hz observed on <code>-cpu cortex-a53</code>).</p>
+<p>Visual proof of the v0.3 graphical boot — a real QMP screendump of the
+virtio-gpu scanout (720x1280), not a mockup:</p>
+<p><img alt="NoxOS boot screen with 15 live init stages" src="screenshots/boot.png" /></p>
+<h2>Phone boot contract (POCO M6 Pro 5G / SM4450) — NOT VERIFIED</h2>
+<p>The v0.2 project intentionally does not contain a phone-specific boot
+image.</p>
+<p>Before any real-device boot work, establish from authoritative device
+sources:
+- exact model and region variant
+- supported boot chain and image format
+- entry exception level and register contract
+- kernel load address and reserved-memory layout
+- DTB location, size and lifetime
+- cache/MMU state on entry
+- interrupt-controller and timer description
+- verified-boot and recovery constraints</p>
+<p>A generic <code>aarch64-unknown-none</code> ELF is not automatically bootable by an
+Android phone bootloader. The Rust target documentation explicitly
+requires a device-specific linker script and startup contract.</p>
+<p>Initial bring-up should use a harmless diagnostic path and preserve the
+stock operating system and recovery path. <strong>Do not flash any NoxOS
+artifact to a phone.</strong></p></article>
+</main>
+<footer class="site"><div class="bar">
+NoxOS - independent Rust kernel - verified in QEMU sandbox (virt) - docs site
+</div></footer>
+</body></html>

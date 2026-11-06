@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hardware Deps - NoxOS Docs</title>
+<link rel="stylesheet" href="assets/style.css"></head>
+<body>
+<header class="site"><div class="bar">
+<a class="brand" href="index.html"><svg class="logo" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><defs><mask id="m"><rect width="32" height="32" fill="white"/><circle cx="20" cy="14" r="9" fill="black"/></mask></defs><circle cx="14" cy="16" r="11" fill="url(#g)" mask="url(#m"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4b5fd"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg><span>NoxOS&nbsp;Docs</span></a>
+<nav class="links"><a href="overview.html" class="">Overview</a><a href="architecture.html" class="">Architecture</a><a href="boot.html" class="">Boot</a><a href="build.html" class="">Build</a><a href="design-system.html" class="">Design System</a><a href="status.html" class="">Status</a><a href="milestones.html" class="">Milestones</a><a href="roadmap.html" class="">Roadmap</a><a href="security.html" class="">Security</a><a href="known-limits.html" class="">Known Limits</a><a href="hardware.html" class="on">Hardware Deps</a><a href="analysis.html" class="">Analysis</a><a href="privacy.html" class="">Privacy</a></nav>
+</div></header>
+<main>
+<article class="prose"><h1>Hardware dependencies and verification status</h1>
+<p>Project rule 7: <em>document every hardware dependency</em>. This table lists
+every hardware constant in the tree and how it was verified.</p>
+<h2>Verified for the QEMU <code>virt</code> platform (emulator bring-up only)</h2>
+<table>
+<thead>
+<tr>
+<th>Constant</th>
+<th>Value</th>
+<th>Source of verification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RAM base</td>
+<td><code>0x4000_0000</code></td>
+<td>QEMU <code>hw/arm/virt.c</code> memmap; observed in the generated FDT</td>
+</tr>
+<tr>
+<td>PL011 UART0</td>
+<td><code>0x0900_0000</code></td>
+<td>QEMU virt memmap; polled console output observed</td>
+</tr>
+<tr>
+<td>GICv2 GICD</td>
+<td><code>0x0800_0000</code></td>
+<td>QEMU virt memmap; interrupt ack/EOI exercised</td>
+</tr>
+<tr>
+<td>GICv2 GICC</td>
+<td><code>0x0801_0000</code></td>
+<td>QEMU virt memmap; timer IRQ delivered</td>
+</tr>
+<tr>
+<td>UART0 INTID</td>
+<td>33</td>
+<td>QEMU virt (SPI 1)</td>
+</tr>
+<tr>
+<td>CNTPNS INTID</td>
+<td>30</td>
+<td>GICv2 standard PPI numbering; tick handler fired</td>
+</tr>
+<tr>
+<td>Kernel load address</td>
+<td><code>0x4020_0000</code></td>
+<td>Chosen so QEMU's FDT (1 MiB) fits below <code>image_low_addr</code> (see <code>docs/BOOT.md</code>)</td>
+</tr>
+<tr>
+<td>Boot stack</td>
+<td>64 KiB inside the image</td>
+<td>linker symbol</td>
+</tr>
+<tr>
+<td>FDT totalsize</td>
+<td>1 MiB (allocation padding)</td>
+<td>dumped DTB header (<code>-machine dumpdtb</code>)</td>
+</tr>
+<tr>
+<td>Timer frequency</td>
+<td>read from <code>CNTFRQ_EL0</code> (62,500,000 Hz observed)</td>
+<td>runtime read, no constant assumed</td>
+</tr>
+</tbody>
+</table>
+<h2>Architectural facts used (ARMv8-A / GICv2 specifications)</h2>
+<ul>
+<li>Exception vector table: 16 × 128-byte slots, <code>VBAR_EL1</code> 2 KiB aligned.</li>
+<li>ESR EC encodings: SVC AArch64 <code>0x15</code>, data/instruction aborts, SError.</li>
+<li>MAIR AttrIdx 0 = normal WB-RWA (<code>0xFF</code>), AttrIdx 1 = Device-nGnRE
+  (<code>0x04</code>); descriptors: AP/SH/AF/nG/PXN/XN bit layout per ARMv8-A.</li>
+<li>TCR: 4 KiB granule, T0SZ/T1SZ = 16 (48-bit VA), inner-shareable.</li>
+<li>GICv2 register offsets (CTLR/IGROUPR/ISENABLER/ICENABLER/ICPENDR/
+  ICFGR, GICC CTLR/PMR/IAR/EOIR) per the GICv2 architecture spec.</li>
+<li>INTID 1022 = "no visible interrupt", 1023 = spurious.</li>
+<li><code>CPACR_EL1.FPEN</code> must allow FP/SIMD at EL1 or the first NEON
+  instruction (compiler-generated wide copies) traps as Undefined.</li>
+</ul>
+<h2>UNVERIFIED — SM4450 / POCO M6 Pro 5G ("sky") phone</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>boot protocol</td>
+<td>UNVERIFIED</td>
+</tr>
+<tr>
+<td>memory map</td>
+<td>UNVERIFIED</td>
+</tr>
+<tr>
+<td>interrupt controller</td>
+<td>UNVERIFIED</td>
+</tr>
+<tr>
+<td>uart</td>
+<td>UNVERIFIED</td>
+</tr>
+<tr>
+<td>display pipeline</td>
+<td>UNVERIFIED</td>
+</tr>
+<tr>
+<td>touch controller</td>
+<td>UNVERIFIED</td>
+</tr>
+<tr>
+<td>boot-time security state (EL, SCR.NS)</td>
+<td>UNVERIFIED</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>platform::qualcomm::sm4450</code> module intentionally contains <strong>no
+hardware addresses</strong>. <code>devices/xiaomi/sky/device.toml</code> records the
+publicly known descriptive profile (SoC, CPU topology, display, storage)
+and marks every bring-up field UNVERIFIED.</p>
+<p>The GIC driver's Group 0 choice is derived from the QEMU boot contract
+(Secure EL1). The phone's boot-time security state is unknown; the
+driver must be re-evaluated before any phone bring-up.</p></article>
+</main>
+<footer class="site"><div class="bar">
+NoxOS - independent Rust kernel - verified in QEMU sandbox (virt) - docs site
+</div></footer>
+</body></html>

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Build - NoxOS Docs</title>
+<link rel="stylesheet" href="assets/style.css"></head>
+<body>
+<header class="site"><div class="bar">
+<a class="brand" href="index.html"><svg class="logo" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><defs><mask id="m"><rect width="32" height="32" fill="white"/><circle cx="20" cy="14" r="9" fill="black"/></mask></defs><circle cx="14" cy="16" r="11" fill="url(#g)" mask="url(#m"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4b5fd"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg><span>NoxOS&nbsp;Docs</span></a>
+<nav class="links"><a href="overview.html" class="">Overview</a><a href="architecture.html" class="">Architecture</a><a href="boot.html" class="">Boot</a><a href="build.html" class="on">Build</a><a href="design-system.html" class="">Design System</a><a href="status.html" class="">Status</a><a href="milestones.html" class="">Milestones</a><a href="roadmap.html" class="">Roadmap</a><a href="security.html" class="">Security</a><a href="known-limits.html" class="">Known Limits</a><a href="hardware.html" class="">Hardware Deps</a><a href="analysis.html" class="">Analysis</a><a href="privacy.html" class="">Privacy</a></nav>
+</div></header>
+<main>
+<article class="prose"><h1>Building NoxOS v0.2 on NoxS Debian</h1>
+<h2>1. Toolchain</h2>
+<pre><code class="language-sh">sudo apt update
+sudo apt install -y build-essential git curl pkg-config qemu-system-arm
+</code></pre>
+<p>Install Rust via the official rustup installer (download the script,
+inspect it, then run it):</p>
+<pre><code class="language-sh">curl -sSfO https://sh.rustup.rs      # or fetch from https://sh.rustup.rs
+less rustup-init.sh                  # inspect before running
+sh rustup-init.sh --profile minimal
+</code></pre>
+<p>Open a new shell, then:</p>
+<pre><code class="language-sh">rustup toolchain install stable
+rustup target add aarch64-unknown-none
+rustup component add rustfmt clippy
+rustc --version    # v0.2 was developed and verified with 1.99.x
+</code></pre>
+<h2>2. Build checks</h2>
+<pre><code class="language-sh">cd noxos-v0.2
+cargo check --workspace
+cargo fmt --all -- --check
+cargo clippy --workspace --target aarch64-unknown-none -- -D warnings
+</code></pre>
+<p>Note: <code>.cargo/config.toml</code> sets the default build target to
+<code>aarch64-unknown-none</code> with <code>panic=abort</code>; host tests pass the host
+target explicitly.</p>
+<h2>3. Host unit tests</h2>
+<pre><code class="language-sh">cargo test -p noxos-kernel --target x86_64-unknown-linux-gnu
+</code></pre>
+<p>91 tests cover: FDT parsing (synthetic blobs), frame allocators, the
+page-table walker (map/translate/unmap/granules/overflow), the VMM
+(W^X), the scheduler (priorities, rotation, block/wake, capacity), IPC
+queues and capability-checked channels, the syscall dispatcher
+(validation, errno semantics, capability gates), capability sets, and
+the spin lock (multi-threaded contention).</p>
+<h2>4. Bootable image (QEMU)</h2>
+<pre><code class="language-sh">make image      # = cargo build -p noxos-boot --features boot-image
+</code></pre>
+<p>The ELF lands at <code>target/aarch64-unknown-none/debug/noxos</code> (linked at
+<code>0x40200000</code>, vector table first — asserted by <code>boot/linker.ld</code>).</p>
+<h2>5. Run in QEMU</h2>
+<pre><code class="language-sh">make qemu       # 8-second run, serial log captured to /tmp/noxos-qemu.log
+</code></pre>
+<p>or manually:</p>
+<pre><code class="language-sh">qemu-system-aarch64 -M virt -cpu cortex-a53 -m 512M \
+    -nic none -nographic \
+    -kernel target/aarch64-unknown-none/debug/noxos
+</code></pre>
+<p>Success criteria (also automated by <code>tests/qemu_smoke.sh</code>):
+- <code>[boot] DTB ok: ...</code>
+- <code>[boot] MMU enabled: true</code>
+- <code>[sched] resumed boot task after demo</code>
+- <code>[boot] ALL SMOKE CHECKS PASSED</code>
+- periodic <code>[tick]</code> lines (IRQ-driven timer)</p>
+<p>Exit QEMU with <code>Ctrl-A X</code>.</p>
+<h2>6. Troubleshooting</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely cause</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>failed to find romfile "efi-virtio.rom"</code></td>
+<td>add <code>-nic none</code> (no NIC) or install the qemu data packages</td>
+</tr>
+<tr>
+<td>boot stops after <code>DTB discovered</code></td>
+<td>kernel linked below 2 MiB over RAM base — QEMU skipped the FDT install; keep <code>BASE_ADDRESS = 0x40200000</code></td>
+</tr>
+<tr>
+<td><code>Undefined Instruction</code> at boot</td>
+<td>FP/SIMD trap — <code>CPACR_EL1.FPEN</code> not enabled (see <code>boot/asm/entry.S</code>)</td>
+</tr>
+<tr>
+<td>no <code>[tick]</code> lines, <code>unhandled INTID 1022</code> spam</td>
+<td>interrupt configured to Group 1 while the kernel runs in Secure state — keep the Group 0 bring-up in <code>interrupts/gic.rs</code></td>
+</tr>
+</tbody>
+</table></article>
+</main>
+<footer class="site"><div class="bar">
+NoxOS - independent Rust kernel - verified in QEMU sandbox (virt) - docs site
+</div></footer>
+</body></html>

@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Overview - NoxOS Docs</title>
+<link rel="stylesheet" href="assets/style.css"></head>
+<body>
+<header class="site"><div class="bar">
+<a class="brand" href="index.html"><svg class="logo" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><defs><mask id="m"><rect width="32" height="32" fill="white"/><circle cx="20" cy="14" r="9" fill="black"/></mask></defs><circle cx="14" cy="16" r="11" fill="url(#g)" mask="url(#m"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4b5fd"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg><span>NoxOS&nbsp;Docs</span></a>
+<nav class="links"><a href="overview.html" class="on">Overview</a><a href="architecture.html" class="">Architecture</a><a href="boot.html" class="">Boot</a><a href="build.html" class="">Build</a><a href="design-system.html" class="">Design System</a><a href="status.html" class="">Status</a><a href="milestones.html" class="">Milestones</a><a href="roadmap.html" class="">Roadmap</a><a href="security.html" class="">Security</a><a href="known-limits.html" class="">Known Limits</a><a href="hardware.html" class="">Hardware Deps</a><a href="analysis.html" class="">Analysis</a><a href="privacy.html" class="">Privacy</a></nav>
+</div></header>
+<main>
+<article class="prose"><h1>NoxOS v0.6 — independent Rust kernel + device/communication foundation</h1>
+<p>Target profile: POCO M6 Pro 5G (<code>sky</code> family), Qualcomm SM4450, AArch64.
+Emulator bring-up platform: QEMU <code>virt</code> (verified contract).</p>
+<h2>What this project is</h2>
+<p>A compilable, <strong>bootable-with-graphics-in-emulation</strong> <code>no_std</code> Rust
+kernel:</p>
+<p><strong>v0.1 + v0.2 (preserved)</strong>
+- boot foundation: startup assembly, linker script, boot stack, BSS
+  init, polled PL011 console, panic handler, DTB discovery/validation
+- AArch64 exception vectors with full register frames
+- memory: checked FDT regions, bump + bitmap frame allocators, 4-level
+  page tables, W^X VMM, MMU enablement
+- GICv2 + ARM generic timer with an IRQ-driven tick
+- scheduler: TCBs, priority run queue, full-register context switch
+- syscall boundary (SVC), process table, capability-checked IPC
+- device service contracts (display/touch/storage/audio/net/USB/power —
+  interfaces only, no hardware claims)</p>
+<p><strong>v0.3 (new — first graphical milestone)</strong>
+- virtio-mmio v2 transport driver (probe all 32 slots, modern layout,
+  split virtqueue with bounded-spin submit/poll)
+- virtio-gpu display driver: the real command path
+  <code>GET_DISPLAY_INFO → RESOURCE_CREATE_2D → RESOURCE_ATTACH_BACKING →
+  SET_SCANOUT → TRANSFER_TO_HOST_2D → RESOURCE_FLUSH</code>
+- scanout resolution read from the device (720x1280 in the shipped
+  profile — nothing hardcoded)
+- safe, bounds-checked software renderer + original NoxOS 5×7 font
+- design tokens (<code>nox.theme</code> seed) + two real scenes: a boot screen
+  driven by 15 actual init stages and a home skeleton whose clock is
+  refreshed once per second by the timer IRQ
+- physically contiguous framebuffer allocation (<code>alloc_contiguous</code>)
+- QMP screenshot capture of the real display output
+- automated boot tests for both the kernel (<code>tests/qemu_smoke.sh</code>) and
+  the graphics path (<code>tests/qemu_graphics.sh</code>)
+- <strong>bug fix (v0.2 latent):</strong> <code>context_switch</code> rewritten as a
+  <code>#[naked]</code> function; the old <code>clobber_abi</code> version could save a
+  skewed SP (see <code>docs/ANALYSIS.md</code>)</p>
+<p><strong>v0.6 (new — P2 Device &amp; Communication Foundation)</strong>
+- DeviceManager: heap-free device registry (monotonic ids, MMIO/IRQ
+  resources), real-DTB discovery (45 <code>compatible</code> nodes ingested on
+  QEMU <code>virt</code>), conservative class inference, compatible-string driver
+  binding, checked lifecycle state machine with driver-failure recovery
+- capability model for devices: per-process open grants gated by
+  <code>DEVICE_OPEN</code>/<code>DEVICE_CONTROL</code>; unauthorized access is structurally
+  denied and exercised on every boot
+- MMIO device-region registry: every ingested device range is published
+  to the checked accessors (closes a v0.3.1 deferred hardening item)
+- IPC v2: owner-only channel close (monotonic, never-reused ids),
+  capability-gated shared-memory regions (<code>ipc::shmem</code>: create/grant/
+  attach/revoke/destroy), async event channels (<code>ipc::events</code>:
+  per-subscriber bounded queues, all-or-nothing publish)
+- automated device gate: <code>tests/qemu_devices.sh</code> checks the whole
+  device stage — discovery, binding, unauthorized-access denial and
+  driver-failure recovery — on the real firmware DTB every run
+- release profile keeps <code>overflow-checks = true</code>; full gate
+  (<code>scripts/test.sh</code>): fmt + clippy −D warnings + host tests + QEMU
+  smoke + QEMU devices + QEMU graphics</p>
+<h2>What it looks like (real QEMU output)</h2>
+<p>All images are real QMP screendumps of the actual virtio-gpu scanout
+(720x1280), captured by <code>scripts/capture_screenshots.py</code> — not mockups.
+The v0.7 kernel runs a boot showcase tour (boot → lock → home → drawer →
+control center → terminal → settings → files → multitask → home) with
+smooth eased slide transitions (~25 fps, per-transition frame timing
+reported over serial).</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><img alt="Boot" src="screenshots/boot.png" /></td>
+<td><img alt="Lock" src="screenshots/lock.png" /></td>
+</tr>
+<tr>
+<td><img alt="Home" src="screenshots/home.png" /></td>
+<td><img alt="App drawer" src="screenshots/drawer.png" /></td>
+</tr>
+<tr>
+<td><img alt="Control center" src="screenshots/control.png" /></td>
+<td><img alt="Terminal neofetch" src="screenshots/terminal.png" /></td>
+</tr>
+<tr>
+<td><img alt="Settings" src="screenshots/settings.png" /></td>
+<td><img alt="Files" src="screenshots/files.png" /></td>
+</tr>
+</tbody>
+</table>
+<p><em>Boot: 15 real init stages. Lock/home: uptime clock (no RTC driver yet —
+the only honest time source), aurora wallpaper, app tiles. Terminal:
+neofetch with real kernel values (version, uptime, scanout resolution,
+usable RAM, DTB device count). Weather card shows no temperature — no
+network stack yet; radios show N/A; folders show "No VFS yet". Scenes
+are rendered UI, not interactive apps: input driver and EL0 userspace
+are still pending (P3/P4), stated on-screen.</em></p>
+<p>Prefer not to build? Grab the prebuilt package from the
+<a href="https://github.com/crossberry-in/NoxOS/releases/tag/v0.3-emulator">releases page</a>:
+<code>NoxOS-v0.3-emulator.zip</code> (kernel ELF + <code>run-noxos.sh</code> / <code>run-noxos.bat</code>
++ docs + tests) or the full source tree as <code>NoxOS-v0.3-source.zip</code>.</p>
+<h2>What it is not</h2>
+<p>Not a phone image, not an Android replacement, not flashable. The
+phone boot contract remains UNVERIFIED — see
+<code>docs/HARDWARE_DEPENDENCIES.md</code>. <strong>Do not flash this project to a
+phone.</strong> QEMU graphics success proves nothing about the phone; see
+<code>docs/KNOWN_LIMITS.md</code> for the full honest-scope list.</p>
+<h2>Debian setup (NoxS)</h2>
+<pre><code class="language-sh">sudo apt update
+sudo apt install -y build-essential git curl pkg-config qemu-system-arm
+</code></pre>
+<p>Install Rust with the official rustup installer, then:</p>
+<pre><code class="language-sh">rustup toolchain install stable
+rustup target add aarch64-unknown-none
+rustup component add rustfmt clippy
+</code></pre>
+<h2>Build &amp; quality gates</h2>
+<pre><code class="language-sh">cargo fmt --all -- --check
+cargo clippy --workspace --target aarch64-unknown-none -- -D warnings
+cargo test -p noxos-kernel --target x86_64-unknown-linux-gnu   # 116 tests
+./scripts/test.sh            # all of the above + QEMU boot tests
+</code></pre>
+<h2>Run it</h2>
+<pre><code class="language-sh">make image                    # build the ELF
+make qemu                     # headless boot, serial smoke check
+make qemu-graphics            # headless boot with the display device
+make screenshots              # capture boot/home screens via QMP
+DISPLAY_BACKEND=gtk make gui  # real QEMU window (interactive session)
+</code></pre>
+<p>Expected serial output ends with <code>[boot] ALL SMOKE CHECKS PASSED</code>
+followed by the graphics chain <code>[nox-gpu] … SCANOUT LIVE 720x1280</code>,
+<code>[nox-ui] BOOT SCREEN COMPLETE</code> and <code>[nox-ui] HOME SCREEN RENDERED</code>,
+then periodic <code>[tick]</code> lines while the on-screen clock updates.</p>
+<p>Real captured output: <code>screenshots/</code> (boot + home screens),
+<code>docs/logs/boot-graphics.log</code>.</p>
+<h2>QEMU contract (emulator only)</h2>
+<pre><code>-M virt -cpu cortex-a53 -m 512M -nic none \
+-global virtio-mmio.force-legacy=off \
+-device virtio-gpu-device,xres=720,yres=1280
+</code></pre>
+<p><code>force-legacy=off</code> selects the modern (v2) virtio-mmio register layout
+the driver implements. The kernel still probes every transport slot at
+runtime and reads the resolution from the device.</p>
+<h2>Next engineering milestones</h2>
+<ol>
+<li>Input: virtio-input (keyboard/pointer) → interactive UI events.</li>
+<li>Damage-tracked renderer + double buffering; compositor design.</li>
+<li>EL0 user address spaces and real processes on top of the syscall
+   boundary.</li>
+<li>Mozhi runtime investigation against the real compiler.</li>
+<li>GIC/timer/UART re-evaluation against the phone boot contract.</li>
+</ol>
+<h2>NoxOS Preview APK (public releases)</h2>
+<p><code>android-app/</code> holds <strong>NoxOS Preview</strong> — a zero-dependency Android shell
+that replays this kernel's 15-stage boot sequence and home skeleton with
+the same <code>nox.theme</code> tokens (see <code>android-app/README.md</code> for the honest
+scope: it does not boot the kernel on-device). CI builds signed APKs on
+every app change and publishes pre-releases to the public download
+channel <strong>crossberry-in/NoxOS-App</strong> (<code>.github/workflows/release-apk.yml</code>).
+The app/kernel source stays closed in this repository.</p>
+<p>Pipeline shape inspired by Hexadecinull/VineOS (<code>release.yml</code>); no GPL
+code is reused.</p></article>
+</main>
+<footer class="site"><div class="bar">
+NoxOS - independent Rust kernel - verified in QEMU sandbox (virt) - docs site
+</div></footer>
+</body></html>

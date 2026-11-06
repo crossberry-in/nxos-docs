@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home - NoxOS Docs</title>
+<link rel="stylesheet" href="assets/style.css"></head>
+<body>
+<header class="site"><div class="bar">
+<a class="brand" href="index.html"><svg class="logo" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><defs><mask id="m"><rect width="32" height="32" fill="white"/><circle cx="20" cy="14" r="9" fill="black"/></mask></defs><circle cx="14" cy="16" r="11" fill="url(#g)" mask="url(#m"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4b5fd"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg><span>NoxOS&nbsp;Docs</span></a>
+<nav class="links"><a href="overview.html" class="">Overview</a><a href="architecture.html" class="">Architecture</a><a href="boot.html" class="">Boot</a><a href="build.html" class="">Build</a><a href="design-system.html" class="">Design System</a><a href="status.html" class="">Status</a><a href="milestones.html" class="">Milestones</a><a href="roadmap.html" class="">Roadmap</a><a href="security.html" class="">Security</a><a href="known-limits.html" class="">Known Limits</a><a href="hardware.html" class="">Hardware Deps</a><a href="analysis.html" class="">Analysis</a><a href="privacy.html" class="">Privacy</a></nav>
+</div></header>
+<main>
+
+<section class="hero">
+<h1>NoxOS Documentation</h1>
+<p class="tagline">Smarter - Simpler - Yours</p>
+<p class="tagline">An independent, no_std Rust kernel for AArch64 mobile hardware,
+built and verified end to end inside a QEMU sandbox.</p>
+<div class="badges">
+<span class="badge">Version <b>v0.7 - UI Showcase</b></span>
+<span class="badge">Target <b>aarch64-unknown-none</b></span>
+<span class="badge">Tests <b>193/193 host + QEMU gates</b></span>
+<span class="badge">Screenshots <b>real QMP captures</b></span>
+</div>
+</section>
+<h2 class="sec">Documents</h2>
+<div class="cards"><a class="card" href="overview.html"><h3>Overview</h3><p>What NoxOS is, its goals and the feature map of the current build.</p></a><a class="card" href="architecture.html"><h3>Architecture</h3><p>Kernel subsystems, boot flow, memory layout and driver model.</p></a><a class="card" href="boot.html"><h3>Boot</h3><p>Boot stages, the init checklist and the smoke markers the tests watch.</p></a><a class="card" href="build.html"><h3>Build</h3><p>Toolchain setup, build targets and running the kernel in QEMU.</p></a><a class="card" href="design-system.html"><h3>Design System</h3><p>The UI language: aurora theme, pixel typography, scenes and animation.</p></a><a class="card" href="status.html"><h3>Status</h3><p>Current milestone status and which gates are verified.</p></a><a class="card" href="milestones.html"><h3>Milestones</h3><p>Release history from v0.1 to the v0.7 UI showcase.</p></a><a class="card" href="roadmap.html"><h3>Roadmap</h3><p>Planned work: input driver, app framework and beyond.</p></a><a class="card" href="security.html"><h3>Security</h3><p>Threat model, audit findings and the hardening checklist.</p></a><a class="card" href="known-limits.html"><h3>Known Limits</h3><p>Honest limitations of the current build - no hidden gaps.</p></a><a class="card" href="hardware.html"><h3>Hardware Deps</h3><p>What NoxOS expects from the machine it boots on.</p></a><a class="card" href="analysis.html"><h3>Analysis</h3><p>Design analysis and trade-offs behind the kernel decisions.</p></a><a class="card" href="privacy.html"><h3>Privacy</h3><p>Data handling stance: what leaves the device and what never does.</p></a></div>
+<h2 class="sec">UI Tour - Real QEMU Screenshots</h2>
+<div class="gallery"><figure class="shot"><a href="screenshots/boot.png" target="_blank"><img src="screenshots/boot.png" alt="Boot screen - init checklist" loading="lazy"></a><figcaption>Boot screen - init checklist</figcaption></figure><figure class="shot"><a href="screenshots/lock.png" target="_blank"><img src="screenshots/lock.png" alt="Lock screen" loading="lazy"></a><figcaption>Lock screen</figcaption></figure><figure class="shot"><a href="screenshots/home.png" target="_blank"><img src="screenshots/home.png" alt="Home - aurora wallpaper" loading="lazy"></a><figcaption>Home - aurora wallpaper</figcaption></figure><figure class="shot"><a href="screenshots/drawer.png" target="_blank"><img src="screenshots/drawer.png" alt="App drawer" loading="lazy"></a><figcaption>App drawer</figcaption></figure><figure class="shot"><a href="screenshots/control.png" target="_blank"><img src="screenshots/control.png" alt="Control center" loading="lazy"></a><figcaption>Control center</figcaption></figure><figure class="shot"><a href="screenshots/terminal.png" target="_blank"><img src="screenshots/terminal.png" alt="Terminal - neofetch" loading="lazy"></a><figcaption>Terminal - neofetch</figcaption></figure><figure class="shot"><a href="screenshots/settings.png" target="_blank"><img src="screenshots/settings.png" alt="Settings (light shell)" loading="lazy"></a><figcaption>Settings (light shell)</figcaption></figure><figure class="shot"><a href="screenshots/files.png" target="_blank"><img src="screenshots/files.png" alt="Files (light shell)" loading="lazy"></a><figcaption>Files (light shell)</figcaption></figure><figure class="shot"><a href="screenshots/multitask.png" target="_blank"><img src="screenshots/multitask.png" alt="Multitask" loading="lazy"></a><figcaption>Multitask</figcaption></figure></div>
+
+</main>
+<footer class="site"><div class="bar">
+NoxOS - independent Rust kernel - verified in QEMU sandbox (virt) - docs site
+</div></footer>
+</body></html>

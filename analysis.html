@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Analysis - NoxOS Docs</title>
+<link rel="stylesheet" href="assets/style.css"></head>
+<body>
+<header class="site"><div class="bar">
+<a class="brand" href="index.html"><svg class="logo" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><defs><mask id="m"><rect width="32" height="32" fill="white"/><circle cx="20" cy="14" r="9" fill="black"/></mask></defs><circle cx="14" cy="16" r="11" fill="url(#g)" mask="url(#m"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4b5fd"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg><span>NoxOS&nbsp;Docs</span></a>
+<nav class="links"><a href="overview.html" class="">Overview</a><a href="architecture.html" class="">Architecture</a><a href="boot.html" class="">Boot</a><a href="build.html" class="">Build</a><a href="design-system.html" class="">Design System</a><a href="status.html" class="">Status</a><a href="milestones.html" class="">Milestones</a><a href="roadmap.html" class="">Roadmap</a><a href="security.html" class="">Security</a><a href="known-limits.html" class="">Known Limits</a><a href="hardware.html" class="">Hardware Deps</a><a href="analysis.html" class="on">Analysis</a><a href="privacy.html" class="">Privacy</a></nav>
+</div></header>
+<main>
+<article class="prose"><h1>NoxOS v0.3 — Repository Analysis Report</h1>
+<p>Scope: full inspection of the existing tree <strong>before</strong> any v0.3
+modification, as required by the development contract. The v0.2
+foundation was treated as read-only reference material and preserved.</p>
+<h2>Tree inspected</h2>
+<ul>
+<li><code>boot/</code> — entry assembly (<code>asm/entry.S</code>), linker script
+  (<code>linker.ld</code>, load address <code>0x40200000</code>, vectors-first layout), boot
+  image crate with the panic handler (<code>src/main.rs</code>), build script
+  handing the linker script to rustc.</li>
+<li><code>kernel/src/lib.rs</code> — <code>no_std</code> kernel library; v0.1 primitives
+  preserved and v0.2 modules: <code>arch</code> (CurrentEL/DAIF/EL2-drop helpers),
+  <code>boot</code> (10-stage boot sequence), <code>console</code> (polled PL011 + <code>kprint!</code>),
+  <code>drivers</code> (device service contracts), <code>fdt</code> (bounds-checked DTB
+  reader), <code>interrupts</code> (GICv2 + generic timer), <code>ipc</code>, <code>memory</code>
+  (regions, bump/bitmap frame allocators, 4-level page tables, W^X
+  VMM), <code>platform</code> (QEMU virt constants + SM4450 profiles), <code>process</code>,
+  <code>scheduler</code> (priority bitmap run queue), <code>security</code> (capability set),
+  <code>sync</code> (spin lock), <code>syscall</code> (SVC boundary).</li>
+<li><code>devices/xiaomi/sky/device.toml</code> — phone profile, all entries
+  <code>UNVERIFIED</code> (correctly so).</li>
+<li><code>Makefile</code>, <code>tests/qemu_smoke.sh</code>, docs set.</li>
+</ul>
+<h2>Findings at analysis time</h2>
+<ol>
+<li><strong>Working and verified (v0.2):</strong> boot → DTB scan → frame allocator →
+   vectors → GICv2 → identity map + MMU → syscall install → scheduler
+   demo → timer IRQs; 91 host unit tests; QEMU smoke markers.</li>
+<li><strong>Latent defect found by v0.3 (fixed, see below):</strong> the cooperative
+   <code>context_switch</code> used <code>clobber_abi("C")</code> inline assembly. LLVM may
+   emit a prologue around such a block (it did: 80 bytes for
+   d8–d15 + x30). The outgoing context's saved SP was captured <em>after</em>
+   that push and the matching pop sat on the never-executed epilogue
+   path, so every resumed task ran 80 bytes deeper into the stack than
+   the compiled continuation expected. v0.2 never re-read caller stack
+   state after the demo, so the bug stayed latent there; v0.3's
+   graphics bring-up re-read the frame allocator afterwards and
+   exposed it. <strong>Fix:</strong> the switch is now a <code>#[naked]</code> function
+   (<code>arch/aarch64/context.rs</code>) — no prologue, exact SP contract. A
+   bisect log and the disassembly evidence are in the v0.3 working
+   notes; the fix is covered by the QEMU smoke test resuming the boot
+   task and by <code>alloc_contiguous</code> allocations succeeding after the
+   demo.</li>
+<li><strong>Gaps relevant to graphics (all closed in v0.3):</strong> no virtio-mmio
+   transport, no display driver, no software renderer, no font, no UI
+   layer, no <code>alloc_contiguous</code> for device buffers, no MMU mapping for
+   the virtio window (<code>0x0a000000</code>).</li>
+<li><strong>Preserved untouched:</strong> every v0.1/v0.2 module listed above; the
+   v0.2 smoke marker set (<code>[boot] ALL SMOKE CHECKS PASSED</code>) still
+   passes byte-for-byte (<code>tests/qemu_smoke.sh</code>).</li>
+</ol>
+<h2>v0.3 additions (on top of the preserved foundation)</h2>
+<ul>
+<li><code>kernel/src/drivers/virtio/</code> — virtio-mmio v2 transport (probe,
+  reset, features, split queue, bounded-spin submit/poll) + virtio-gpu
+  device driver (display info, 2D resource, backing, scanout,
+  transfer, flush).</li>
+<li><code>kernel/src/graphics/</code> — original 5×7 NoxOS bitmap font, safe
+  bounds-checked <code>Surface</code> renderer (host-tested), device-shared
+  framebuffer handle (the only <code>unsafe</code> pixel path, documented).</li>
+<li><code>kernel/src/ui/</code> — design tokens, boot screen scene (real init
+  progress), home skeleton (IRQ-driven uptime clock), aarch64 runtime
+  glue.</li>
+<li><code>memory/frame.rs</code> — <code>alloc_contiguous</code> for physically contiguous
+  device buffers (+ host tests).</li>
+<li>Boot sequence extended (stage 11) with an optional, fail-open
+  graphics bring-up; the idle loop now refreshes the home clock once
+  per second from the timer tick.</li>
+</ul>
+<p>Verification artifacts: <code>screenshots/</code> (QMP screendumps of the
+actual scanout), <code>docs/logs/boot-graphics.log</code> (serial markers),
+<code>tests/qemu_graphics.sh</code> (automated), <code>docs/KNOWN_LIMITS.md</code> (honest
+scope).</p></article>
+</main>
+<footer class="site"><div class="bar">
+NoxOS - independent Rust kernel - verified in QEMU sandbox (virt) - docs site
+</div></footer>
+</body></html>

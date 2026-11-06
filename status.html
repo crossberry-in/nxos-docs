@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Status - NoxOS Docs</title>
+<link rel="stylesheet" href="assets/style.css"></head>
+<body>
+<header class="site"><div class="bar">
+<a class="brand" href="index.html"><svg class="logo" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><defs><mask id="m"><rect width="32" height="32" fill="white"/><circle cx="20" cy="14" r="9" fill="black"/></mask></defs><circle cx="14" cy="16" r="11" fill="url(#g)" mask="url(#m"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4b5fd"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg><span>NoxOS&nbsp;Docs</span></a>
+<nav class="links"><a href="overview.html" class="">Overview</a><a href="architecture.html" class="">Architecture</a><a href="boot.html" class="">Boot</a><a href="build.html" class="">Build</a><a href="design-system.html" class="">Design System</a><a href="status.html" class="on">Status</a><a href="milestones.html" class="">Milestones</a><a href="roadmap.html" class="">Roadmap</a><a href="security.html" class="">Security</a><a href="known-limits.html" class="">Known Limits</a><a href="hardware.html" class="">Hardware Deps</a><a href="analysis.html" class="">Analysis</a><a href="privacy.html" class="">Privacy</a></nav>
+</div></header>
+<main>
+<article class="prose"><h1>NoxOS Feature Inventory (master-spec baseline)</h1>
+<p>Generated per the development master specification, Section 20 step 2
+("inventory of existing working and missing features"). Evidence column
+points at the test that proves it — an item without evidence is not
+"working".</p>
+<p>Last verified: 2026-11-06 (v0.7 UI showcase on top of the v0.6 P2 device
+&amp; communication foundation and the v0.3.1 security audit).</p>
+<h2>Legend</h2>
+<p><strong>W</strong> = working, verified · <strong>P</strong> = partial (exists, incomplete/unverified
+beyond QEMU) · <strong>M</strong> = missing · <strong>X</strong> = conflicts with policy (kept as
+history)</p>
+<h2>Kernel (Rust, <code>no_std</code>, AArch64)</h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>State</th>
+<th>Evidence / notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Boot (entry.S, ELF @ 0x40200000, BSS, stack)</td>
+<td><strong>W</strong></td>
+<td><code>make smoke</code></td>
+</tr>
+<tr>
+<td>Serial console (polled PL011)</td>
+<td><strong>W</strong></td>
+<td><code>make smoke</code></td>
+</tr>
+<tr>
+<td>Privilege normalisation (EL2→EL1)</td>
+<td><strong>W</strong></td>
+<td>smoke <code>[boot] running at EL1</code></td>
+</tr>
+<tr>
+<td>DTB discovery + validation (FDT walker)</td>
+<td><strong>W</strong> (hardened v0.3.1)</td>
+<td>smoke <code>DTB ok:</code>; audit #2–#7</td>
+</tr>
+<tr>
+<td>Frame allocator (bump + bitmap, checked)</td>
+<td><strong>W</strong></td>
+<td>host tests + smoke</td>
+</tr>
+<tr>
+<td>Page tables / VMM (4K/2M, W^X checks, TLB flush)</td>
+<td><strong>W</strong> (hardened v0.3.1)</td>
+<td>host tests (page_table suite)</td>
+</tr>
+<tr>
+<td>MMU enable (MAIR/TCR/TTBR0, W^X image split)</td>
+<td><strong>W</strong> (hardened v0.3.1)</td>
+<td>smoke <code>MMU enabled: true</code></td>
+</tr>
+<tr>
+<td>Exception vectors + fault handling (2 KiB table)</td>
+<td><strong>W</strong></td>
+<td>smoke; dump redaction in release</td>
+</tr>
+<tr>
+<td>GICv2 + generic timer + IRQ dispatch</td>
+<td><strong>W</strong> (IRQ-safe locks v0.3.1)</td>
+<td>smoke <code>observed 5 timer ticks</code></td>
+</tr>
+<tr>
+<td>Scheduler (32-level bitmap, round-robin, block/wake/exit)</td>
+<td><strong>W</strong> (fixed v0.3.1)</td>
+<td>host tests (scheduler suite)</td>
+</tr>
+<tr>
+<td>Context switch (naked asm save/restore, cooperative demo)</td>
+<td><strong>W</strong></td>
+<td>smoke <code>resumed boot task after demo</code></td>
+</tr>
+<tr>
+<td>Syscall boundary (SVC, capability checks, task↔pid map)</td>
+<td><strong>W</strong> (hardened v0.3.1)</td>
+<td>host tests (syscall suite)</td>
+</tr>
+<tr>
+<td>IPC (channels, fixed-size messages, owner checks)</td>
+<td><strong>W</strong> (v0.6)</td>
+<td>host tests; v2 adds channel close, shared memory (<code>ipc::shmem</code>) and async event channels (<code>ipc::events</code>); async wake-scheduling pending EL0</td>
+</tr>
+<tr>
+<td>DeviceManager (registry, discovery, binding, lifecycle, grants)</td>
+<td><strong>W</strong></td>
+<td>host tests (29) + <code>tests/qemu_devices.sh</code> on the real QEMU virt DTB</td>
+</tr>
+<tr>
+<td>Device discovery (DTB memory/reservations)</td>
+<td><strong>W</strong> (hardened v0.3.1, devices v0.6)</td>
+<td>smoke <code>DTB ok:</code>; 45 <code>compatible</code> nodes ingested on QEMU virt</td>
+</tr>
+<tr>
+<td>Sync primitives (SpinLock + SpinLockIrq)</td>
+<td><strong>W</strong></td>
+<td>host tests</td>
+</tr>
+<tr>
+<td>Process manager (table, spawn/exit, caps inheritance)</td>
+<td><strong>P</strong></td>
+<td>host tests; no EL0 address spaces yet</td>
+</tr>
+<tr>
+<td>Security model (CapabilitySet)</td>
+<td><strong>W</strong></td>
+<td>host tests (security suite); v0.6 adds DEVICE/SHM/EVENT bits</td>
+</tr>
+<tr>
+<td>Driver framework (service contracts)</td>
+<td><strong>W</strong> (contracts v0.2, binding v0.6)</td>
+<td><code>drivers/service.rs</code> contracts; <code>devices::DeviceRegistry</code> compatible-binding + hotplug-ready global registry</td>
+</tr>
+<tr>
+<td>Smooth scene transitions (eased slides, offscreen compose)</td>
+<td><strong>W</strong> (v0.7)</td>
+<td>serial <code>ANIM &lt;from&gt;-&gt;&lt;to&gt;: 27 frames, avg N ms/frame</code> per transition</td>
+</tr>
+<tr>
+<td>VirtIO transport (virtio-mmio v2, probe + queue)</td>
+<td><strong>W</strong> (hardened v0.3.1)</td>
+<td>graphics test</td>
+</tr>
+<tr>
+<td>VirtIO-GPU display driver (scanout 720×1280)</td>
+<td><strong>W</strong></td>
+<td><code>make qemu-graphics</code> (SCANOUT LIVE)</td>
+</tr>
+<tr>
+<td>App shell scenes (drawer / control center / settings / files / multitask / terminal)</td>
+<td><strong>W</strong> (rendered UI, non-interactive — honest N/A for radios, storage, apps)</td>
+<td><code>tests/qemu_graphics.sh</code> SHOT4–SHOT9 + <code>screenshots/</code></td>
+</tr>
+<tr>
+<td>Graphics: font/surface/framebuffer (safe renderer)</td>
+<td><strong>W</strong> (saturating math v0.3.1; lowercase font + <code>#@$~</code> v0.7, paren orientation fixed)</td>
+<td>host tests + graphics test</td>
+</tr>
+<tr>
+<td>UI scenes (boot + 8-scene showcase tour, aurora tokens)</td>
+<td><strong>W</strong></td>
+<td>graphics test SHOT1–SHOT9 + <code>SCENE TOUR COMPLETE</code></td>
+</tr>
+<tr>
+<td>EL0 userspace</td>
+<td><strong>M</strong></td>
+<td>gated (see SECURITY.md §3.2)</td>
+</tr>
+<tr>
+<td>VFS / block devices / storage</td>
+<td><strong>M</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Networking stack</td>
+<td><strong>M</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Power management</td>
+<td><strong>M</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td>x86_64 port</td>
+<td><strong>M</strong></td>
+<td>master spec target; not started</td>
+</tr>
+</tbody>
+</table>
+<h2>Platform / devices</h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>State</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>QEMU <code>virt</code> (AArch64) profile</td>
+<td><strong>W</strong></td>
+<td>verified platform, all scripts</td>
+</tr>
+<tr>
+<td>SM4450 ("sky") phone profile</td>
+<td><strong>P</strong></td>
+<td>device tree/timer stubs only; <strong>UNVERIFIED</strong>, no flash path — per policy no hardware claims</td>
+</tr>
+<tr>
+<td>x86_64 (UEFI/ACPI/APIC/PCI/NVMe)</td>
+<td><strong>M</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td>VirtIO block/net/input</td>
+<td><strong>M</strong></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2>Mozhi (closed source, crossberry-in/mozhi)</h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>State</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Language platform (C interpreter, v3.x)</td>
+<td><strong>W</strong> (upstream)</td>
+<td>built + 22/22 app-platform e2e tests on 2026-11-06</td>
+</tr>
+<tr>
+<td>App lifecycle (<code>.mz</code> → <code>.pkg</code> → install → full window)</td>
+<td><strong>W</strong> (upstream, browser window today)</td>
+<td><code>tests/app_test.sh</code></td>
+</tr>
+<tr>
+<td>NoxOS kernel integration (freestanding mode, syscalls, EL0 runtime)</td>
+<td><strong>M</strong></td>
+<td>gate: compiler/runtime/ABI verification first (spec §5)</td>
+</tr>
+<tr>
+<td>NoxOS native launcher installing <code>.pkg</code></td>
+<td><strong>M</strong></td>
+<td>planned (roadmap P4)</td>
+</tr>
+</tbody>
+</table>
+<h2>Tooling / infrastructure</h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>State</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Build scripts (build/test/clean/run-qemu*)</td>
+<td><strong>W</strong></td>
+<td>scripts/</td>
+</tr>
+<tr>
+<td>QEMU sandbox bootstrap (<code>restore-qemu.sh</code>)</td>
+<td><strong>W</strong></td>
+<td>no-sudo deb extraction + wrapper</td>
+</tr>
+<tr>
+<td>Screenshot capture (QMP)</td>
+<td><strong>W</strong></td>
+<td>scripts/capture_screenshots.py</td>
+</tr>
+<tr>
+<td><code>noxs</code> unified build system</td>
+<td><strong>M</strong></td>
+<td>spec §16 commands</td>
+</tr>
+<tr>
+<td>Signed release pipeline (<code>.nxpkg</code>, manifests, rollback)</td>
+<td><strong>M</strong></td>
+<td>spec §17</td>
+</tr>
+<tr>
+<td>Public docs site (NoxOS-Docs, GitHub Pages)</td>
+<td><strong>M</strong></td>
+<td>spec §18 — docs/ content here is the source material</td>
+</tr>
+</tbody>
+</table>
+<h2>Policy conflicts / legacy</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>State</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>android-app/</code> (Java/Gradle NoxOS preview viewer)</td>
+<td><strong>X</strong></td>
+<td>Kept (no deletions), excluded from the OS; superseded by Mozhi runtime + future NoxOS-native tooling. Its committed keystore must be rotated + removed from git (SECURITY.md §3.3).</td>
+</tr>
+<tr>
+<td><code>nx-pkg-app</code> local working tree (Mozhi app template + verified <code>.pkg</code>)</td>
+<td><strong>P</strong></td>
+<td>Built + fully verified locally 2026-11-06; <strong>not published</strong> (closed-source policy: <code>.mz</code> sources are proprietary; public repos carry docs only).</td>
+</tr>
+</tbody>
+</table></article>
+</main>
+<footer class="site"><div class="bar">
+NoxOS - independent Rust kernel - verified in QEMU sandbox (virt) - docs site
+</div></footer>
+</body></html>

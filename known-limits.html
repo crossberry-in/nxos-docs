@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Known Limits - NoxOS Docs</title>
+<link rel="stylesheet" href="assets/style.css"></head>
+<body>
+<header class="site"><div class="bar">
+<a class="brand" href="index.html"><svg class="logo" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><defs><mask id="m"><rect width="32" height="32" fill="white"/><circle cx="20" cy="14" r="9" fill="black"/></mask></defs><circle cx="14" cy="16" r="11" fill="url(#g)" mask="url(#m"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4b5fd"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg><span>NoxOS&nbsp;Docs</span></a>
+<nav class="links"><a href="overview.html" class="">Overview</a><a href="architecture.html" class="">Architecture</a><a href="boot.html" class="">Boot</a><a href="build.html" class="">Build</a><a href="design-system.html" class="">Design System</a><a href="status.html" class="">Status</a><a href="milestones.html" class="">Milestones</a><a href="roadmap.html" class="">Roadmap</a><a href="security.html" class="">Security</a><a href="known-limits.html" class="on">Known Limits</a><a href="hardware.html" class="">Hardware Deps</a><a href="analysis.html" class="">Analysis</a><a href="privacy.html" class="">Privacy</a></nav>
+</div></header>
+<main>
+<article class="prose"><h1>NoxOS v0.3 — Known Limits &amp; Honest Scope</h1>
+<p>This file exists so that nobody (including future contributors) mistakes
+an emulator result for a hardware result, or a skeleton for a product.</p>
+<h2>What IS proven (QEMU <code>virt</code>, verified this milestone)</h2>
+<ul>
+<li>The kernel boots, validates the DTB, enables the MMU, services timer
+  IRQs through the GIC, and runs the cooperative scheduler demo
+  (<code>tests/qemu_smoke.sh</code>).</li>
+<li>A virtio-mmio v2 transport driver probes all 32 transport slots and
+  finds the virtio-gpu device (device ID 16, reported at slot
+  <code>0xa003e00</code> on QEMU 10).</li>
+<li>The virtio-gpu driver completes the real command path:
+  <code>GET_DISPLAY_INFO</code> → <code>RESOURCE_CREATE_2D</code> → <code>RESOURCE_ATTACH_BACKING</code>
+  → <code>SET_SCANOUT</code> → <code>TRANSFER_TO_HOST_2D</code> → <code>RESOURCE_FLUSH</code>.</li>
+<li>The scanout resolution comes from the <strong>device</strong> (<code>720x1280</code> is what
+  QEMU reports; nothing is hardcoded).</li>
+<li>The NoxOS software renderer draws the boot screen (with live init
+  progress) and the home skeleton through that scanout — verified by
+  QMP screendumps (<code>screenshots/</code>) and by the automated marker
+  test (<code>tests/qemu_graphics.sh</code>).</li>
+</ul>
+<h2>What is NOT true yet — do not assume it</h2>
+<ol>
+<li><strong>This is not a phone OS image.</strong> The POCO M6 Pro 5G (SM4450) boot
+   contract is still unverified. Nothing here flashes, boots, or claims
+   to boot on the phone. QEMU success proves nothing about the phone.</li>
+<li><strong>No 3D / GPU acceleration.</strong> virtio-gpu 2D scanout is a shared-
+   memory blit path, not a GPU driver. There is no OpenGL/Vulkan claim
+   anywhere.</li>
+<li><strong>No input.</strong> There is no virtio-input (or any) driver; the home
+   screen tiles are rendered UI, not interactive applications. The
+   screen says so.</li>
+<li><strong>No wall-clock time.</strong> The home clock shows <strong>uptime</strong> from the
+   architectural counter (<code>CNTFRQ</code>/<code>CNTPCT</code>); there is no RTC driver.</li>
+<li><strong>TCG cache-coherency assumption.</strong> QEMU TCG does not emulate CPU
+   caches, so the queue/framebuffer RAM needs no cache maintenance
+   <em>under TCG only</em>. KVM or real hardware bring-up must give the shared
+   buffers DMA-coherent mappings or explicit cache ops before reusing
+   <code>drivers/virtio</code>.</li>
+<li><strong>Single core.</strong> <code>-smp 1</code>; secondaries park at entry. SMP is future
+   work.</li>
+<li><strong>Polling display queue.</strong> The control queue is driven by a bounded
+   spin, not by the GIC interrupt. Transport IRQ acking is done but the
+   IRQ is never awaited.</li>
+<li><strong>Bump frame allocator</strong> never frees; <code>alloc_contiguous</code> strands
+   leftover frames of skipped regions (accounted, documented). A
+   free-list allocator is still on the roadmap.</li>
+<li><strong>Home screen tiles are placeholders.</strong> They are honest pixels, not
+   applications; no window manager, compositor, or app runtime exists
+   yet.</li>
+<li><strong>No Mozhi runtime, no Studio, no SDK</strong> in v0.3 — those phases are
+    unstarted; see <code>docs/MILESTONES.md</code> for the honest status board.</li>
+</ol></article>
+</main>
+<footer class="site"><div class="bar">
+NoxOS - independent Rust kernel - verified in QEMU sandbox (virt) - docs site
+</div></footer>
+</body></html>

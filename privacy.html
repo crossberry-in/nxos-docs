@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy - NoxOS Docs</title>
+<link rel="stylesheet" href="assets/style.css"></head>
+<body>
+<header class="site"><div class="bar">
+<a class="brand" href="index.html"><svg class="logo" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><defs><mask id="m"><rect width="32" height="32" fill="white"/><circle cx="20" cy="14" r="9" fill="black"/></mask></defs><circle cx="14" cy="16" r="11" fill="url(#g)" mask="url(#m"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4b5fd"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg><span>NoxOS&nbsp;Docs</span></a>
+<nav class="links"><a href="overview.html" class="">Overview</a><a href="architecture.html" class="">Architecture</a><a href="boot.html" class="">Boot</a><a href="build.html" class="">Build</a><a href="design-system.html" class="">Design System</a><a href="status.html" class="">Status</a><a href="milestones.html" class="">Milestones</a><a href="roadmap.html" class="">Roadmap</a><a href="security.html" class="">Security</a><a href="known-limits.html" class="">Known Limits</a><a href="hardware.html" class="">Hardware Deps</a><a href="analysis.html" class="">Analysis</a><a href="privacy.html" class="on">Privacy</a></nav>
+</div></header>
+<main>
+<article class="prose"><h1>NoxOS Privacy Principles</h1>
+<p>NoxOS is a <strong>privacy-first OS</strong>. These principles are engineering
+constraints, not marketing: every one of them maps to code, tests or a
+tracked gate in <code>docs/SECURITY.md</code> / <code>docs/ROADMAP.md</code>.</p>
+<h2>1. Data minimisation by construction</h2>
+<ul>
+<li>The kernel collects no telemetry. There is no analytics module, no
+  crash-upload path, and none is planned in the kernel or system services.</li>
+<li>Logs exist for the operator (serial console), not for network transfer.
+  Nothing reads them back for reporting.</li>
+</ul>
+<h2>2. The serial log is a sensitive artifact</h2>
+<ul>
+<li>Fault dumps release-build redacted: exception class + fault status only;
+  full register/address dumps are dev-build only
+  (<code>exception.rs::dump</code>, audit v0.3.1 #16).</li>
+<li>Kernel log lines are kernel-originated: userspace cannot inject log text
+  (PUTCHAR is capability-gated, audit #13).</li>
+<li>Future gate: per-subsystem log levels shipped default-conservative.</li>
+</ul>
+<h2>3. Capability-based permission model</h2>
+<ul>
+<li>Every syscall that touches a sensitive surface requires an explicit
+  capability bit (<code>security::CapabilitySet</code>). Default = <code>NONE</code>.</li>
+<li>Children/spawned apps inherit least privilege (currently DISPLAY only)
+  until a full inheritance policy lands.</li>
+<li>Planned: user-visible permission prompts per capability (roadmap P4),
+  with revocation at the PermissionManager service.</li>
+</ul>
+<h2>4. Memory isolation roadmap (hard gates)</h2>
+<ul>
+<li>EL0 userspace will not ship until: TTBR1/kernel-VA reservation,
+  per-ASID TLB invalidation, per-CPU caller identity and a returnable
+  lower-EL exception path exist (see SECURITY.md §3.2 "Deferred" — these
+  are <strong>gates</strong>, not suggestions).</li>
+<li>W^X is enforced at boot today; user+X and W+X are rejected by the VMM.</li>
+</ul>
+<h2>5. Identity &amp; networking honesty</h2>
+<ul>
+<li>No unique install/build identifiers are emitted by the kernel.</li>
+<li>Networking begins in QEMU with virtual devices; no Wi-Fi/Bluetooth/
+  cellular compatibility is claimed until the chipset + firmware
+  integration is actually tested (master spec §11). Location/wireless
+  managers will expose state only after that verification.</li>
+</ul>
+<h2>6. Package integrity (planned <code>.nxpkg</code>)</h2>
+<ul>
+<li>Packages carry metadata, dependency info, digital signatures and
+  per-file hashes; install verifies integrity before activation and
+  supports rollback (master spec §14).</li>
+<li>Signing keys never live in git (see the keystore finding in
+  SECURITY.md §3.3 — being remediated by the owner).</li>
+</ul>
+<h2>7. Closed source ≠ security by obscurity</h2>
+<ul>
+<li>The source stays private (proprietary product), but the <em>security
+  posture</em> is public: this document, <code>docs/SECURITY.md</code>, and the audit
+  trail describe exactly what is enforced and what is not. Honesty over
+  claims — an unverified statement in these files is a bug.</li>
+</ul></article>
+</main>
+<footer class="site"><div class="bar">
+NoxOS - independent Rust kernel - verified in QEMU sandbox (virt) - docs site
+</div></footer>
+</body></html>

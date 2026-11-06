@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Security - NoxOS Docs</title>
+<link rel="stylesheet" href="assets/style.css"></head>
+<body>
+<header class="site"><div class="bar">
+<a class="brand" href="index.html"><svg class="logo" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><defs><mask id="m"><rect width="32" height="32" fill="white"/><circle cx="20" cy="14" r="9" fill="black"/></mask></defs><circle cx="14" cy="16" r="11" fill="url(#g)" mask="url(#m"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4b5fd"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg><span>NoxOS&nbsp;Docs</span></a>
+<nav class="links"><a href="overview.html" class="">Overview</a><a href="architecture.html" class="">Architecture</a><a href="boot.html" class="">Boot</a><a href="build.html" class="">Build</a><a href="design-system.html" class="">Design System</a><a href="status.html" class="">Status</a><a href="milestones.html" class="">Milestones</a><a href="roadmap.html" class="">Roadmap</a><a href="security.html" class="on">Security</a><a href="known-limits.html" class="">Known Limits</a><a href="hardware.html" class="">Hardware Deps</a><a href="analysis.html" class="">Analysis</a><a href="privacy.html" class="">Privacy</a></nav>
+</div></header>
+<main>
+<article class="prose"><h1>NoxOS Security — Threat Model &amp; Hardening Log</h1>
+<p>Status: <strong>living document</strong>, updated every audit cycle. Nothing in here is
+aspirational: each entry points at real commits/tests.</p>
+<h2>1. Threat model (v0.3.1)</h2>
+<table>
+<thead>
+<tr>
+<th>Adversary</th>
+<th>Capability</th>
+<th>Today</th>
+<th>Target (v0.4+)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Corrupted/malicious firmware</td>
+<td>Supplies DTB, device memory contents</td>
+<td>In scope (QEMU <code>virt</code> verified paths)</td>
+<td>Same, incl. real bootloaders</td>
+</tr>
+<tr>
+<td>Malicious device</td>
+<td>DMA, config-space values, wedged registers</td>
+<td>In scope for the virtio paths in use</td>
+<td>+ IOMMU/<code>ACCESS_PLATFORM</code></td>
+</tr>
+<tr>
+<td>Local app (EL0)</td>
+<td>Syscalls, IPC with hostile arguments</td>
+<td><strong>Not yet possible</strong> (no EL0); syscall/IPC surface hardened ahead of it</td>
+<td>Primary adversary</td>
+</tr>
+<tr>
+<td>Physical attacker</td>
+<td>Serial console, storage, package tampering</td>
+<td>Partially (log redaction)</td>
+<td>Signed packages, encrypted storage</td>
+</tr>
+</tbody>
+</table>
+<p>Platform honesty: everything below is verified on <strong>QEMU <code>virt</code> (cortex-a53,
+GICv2, virtio-mmio v2)</strong> only. No phone/SoC security claim exists — see
+<code>docs/HARDWARE_DEPENDENCIES.md</code>.</p>
+<h2>2. Systemic invariants</h2>
+<ul>
+<li><code>no_std</code> + <code>#![deny(unsafe_op_in_unsafe_fn)]</code>; <code>unsafe</code> blocks carry
+  SAFETY comments.</li>
+<li><strong>Overflow checks on in ALL profiles</strong> (<code>Cargo.toml [profile.release]
+  overflow-checks = true</code>): device-controlled arithmetic that would wrap in
+  release aborts cleanly instead of corrupting state.</li>
+<li><code>panic = abort</code> (<code>.cargo/config.toml</code>): no unwinding through kernel code.</li>
+<li>W^X at boot: image split into RO+X (vectors/text/rodata) and RW+XN
+  (data/bss/stack) halves with 4 KiB granules; the VMM layer additionally
+  rejects W+X and user+X mappings (<code>validate_flags</code>).</li>
+<li>Capability-gated syscalls: unknown numbers rejected; every gated call
+  checks the caller's capability set; unknown capability bits rejected at
+  spawn; children inherit least privilege (DISPLAY only).</li>
+</ul>
+<h2>3. Red-team audit v0.3.1 (three independent reviewers)</h2>
+<p>Method: three parallel adversarial reviews (device-input parsing; memory/
+arch/sync; syscall/IPC/UI bounds) over the full kernel, findings verified
+against exact source lines, then fixed and re-verified in QEMU.</p>
+<h3>3.1 Fixed (verified: <code>make smoke</code> PASS dev+release, graphics PASS, 120/120 host tests)</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Severity</th>
+<th>Where</th>
+<th>Issue</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>HIGH</strong></td>
+<td><code>sync.rs</code>, <code>boot.rs</code>, <code>interrupts/mod.rs</code>, <code>console.rs</code>, <code>syscall/mod.rs</code></td>
+<td>No IRQ-safe lock existed although the timer handler took <code>TICKS</code>/console locks that thread code also holds with IRQs enabled → guaranteed permanent deadlock on a tick landing inside a critical section</td>
+<td>New <code>SpinLockIrq</code> (DAIF save/mask/restore); all four IRQ-reachable statics (<code>TICKS</code>, <code>REGISTRY</code>, <code>STATE</code>, <code>CONSOLE</code>) converted; host tests added</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>HIGH</strong></td>
+<td><code>boot.rs</code> DTB acquisition</td>
+<td>Loader-supplied DTB pointer was volatile-read with only a magic check, before exception vectors were installed</td>
+<td><code>dtb_address_ok()</code>: 4-byte alignment + inside platform RAM before any read; scan results re-validated; <code>virt::RAM_SIZE</code> used instead of hardcoded 512 MiB</td>
+</tr>
+<tr>
+<td>3</td>
+<td>MEDIUM</td>
+<td><code>fdt/mod.rs</code></td>
+<td>FDT bounds checks were relative to the 1 MiB probe slice, not the blob — bytes beyond the DTB could be parsed as reservations/structure</td>
+<td><code>Fdt::new</code> narrows the view to the header's <code>total_size</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>MEDIUM</td>
+<td><code>boot.rs</code> probe window</td>
+<td>Fixed 1 MiB DTB slice could run past the end of RAM</td>
+<td>Window clamped to RAM end</td>
+</tr>
+<tr>
+<td>5</td>
+<td>MEDIUM</td>
+<td><code>boot.rs</code> reservations</td>
+<td>Reservation parse failure silently disabled ALL firmware exclusions (<code>unwrap_or(0)</code>)</td>
+<td>Parse error is fatal (boot parks)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>MEDIUM</td>
+<td><code>boot.rs</code>/<code>frame.rs</code></td>
+<td>Unchecked <code>div_ceil(page)*page</code> on device region starts — release wrapped to physical 0</td>
+<td>Checked alignment; unalignable regions skipped</td>
+</tr>
+<tr>
+<td>7</td>
+<td>MEDIUM</td>
+<td><code>plan_usable</code></td>
+<td>Overlapping/duplicate DTB memory regions accepted → same frame handed to two consumers</td>
+<td>Sort + coalesce before gap emission</td>
+</tr>
+<tr>
+<td>8</td>
+<td>MEDIUM</td>
+<td><code>virtio/mod.rs</code></td>
+<td>Unbounded reset spin on a device-controlled status register</td>
+<td>Bounded (<code>TRANSPORT_SPIN_BUDGET</code>) → <code>Timeout</code> error; queue-ready read-back also bounded; queue size rounded to power of two</td>
+</tr>
+<tr>
+<td>9</td>
+<td>MEDIUM</td>
+<td><code>virtio/gpu.rs</code></td>
+<td>Device-reported resolution stored unclamped; check-then-use on DMA-visible pmode</td>
+<td>pmode copied to local once; validated (w,h ≠ 0) and clamped ≤ 8192; <code>fb_len ≤ u32::MAX</code> before <code>MemEntry</code></td>
+</tr>
+<tr>
+<td>10</td>
+<td>MEDIUM</td>
+<td><code>boot.rs</code> image map</td>
+<td>Whole kernel image mapped RW+X (one 2 MiB block)</td>
+<td>W^X split (see §2), verified by MMU-on smoke</td>
+</tr>
+<tr>
+<td>11</td>
+<td>MEDIUM</td>
+<td><code>page_table.rs</code></td>
+<td><code>unmap_range</code> performed <strong>no TLB maintenance</strong> — a freed translation stayed live (future munmap escape primitive)</td>
+<td><code>tlbi vmalle1is</code> + DSB/ISB flush after teardown (<code>mmu::tlb_flush_all_el1</code>)</td>
+</tr>
+<tr>
+<td>12</td>
+<td>MEDIUM</td>
+<td><code>syscall/mod.rs</code> EXIT</td>
+<td>Task-id/pid namespaces conflated: a task could retire an unrelated process sharing its numeric id</td>
+<td>Explicit task→pid mapping recorded at spawn; EXIT resolves through it; unmapped task → <code>ESRCH</code>; tests updated + new test</td>
+</tr>
+<tr>
+<td>13</td>
+<td>MEDIUM</td>
+<td><code>syscall/mod.rs</code> PUTCHAR</td>
+<td>No capability check: any caller could forge kernel log lines / monopolise the UART</td>
+<td>Gated behind new <code>CONSOLE_WRITE</code> capability; kernel context updated; tests added</td>
+</tr>
+<tr>
+<td>14</td>
+<td>MEDIUM</td>
+<td><code>scheduler/mod.rs</code></td>
+<td><code>block()</code>/<code>exit()</code> left stale ring entries → blocked tasks kept being scheduled; freed slot replay panicked (<code>expect</code>)</td>
+<td>Ring <code>remove()</code> on block/exit; <code>schedule()</code> skips non-Ready entries; <code>enqueue_ready</code> pushes before marking Ready</td>
+</tr>
+<tr>
+<td>15</td>
+<td>MEDIUM</td>
+<td><code>ui/home.rs</code>, <code>ui/boot_screen.rs</code>, <code>graphics/surface.rs</code>, <code>ui/runtime.rs</code></td>
+<td>Device-reported dimensions used in unchecked u32 arithmetic → abort on edge-case scanouts</td>
+<td>Saturating layout math; zero-size rect guard; checked fb size math</td>
+</tr>
+<tr>
+<td>16</td>
+<td>MEDIUM (privacy)</td>
+<td><code>exception.rs</code></td>
+<td>Fault dumps printed full register file + FAR/ELR/SP to the always-on serial log</td>
+<td>Release builds log class/fault-status only; full dump behind <code>debug_assertions</code></td>
+</tr>
+</tbody>
+</table>
+<h3>3.2 Deferred (tracked, with rationale)</h3>
+<table>
+<thead>
+<tr>
+<th>Severity</th>
+<th>Area</th>
+<th>Item</th>
+<th>Why deferred</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MEDIUM</td>
+<td><code>vectors.S</code></td>
+<td><code>RESTORE_ALL</code> does not reload ELR/SPSR from the saved frame (handler edits to saved PC are dropped)</td>
+<td>No handler mutates the frame yet; must land <strong>before</strong> the first syscall PC-advance</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td><code>vectors.S</code></td>
+<td>No double-fault stack: a corrupted kernel SP recurses in <code>SAVE_ALL</code> silently</td>
+<td>Needs per-CPU guard stack design; scheduled with SMP work</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td><code>mmio.rs</code></td>
+<td>Accessors accept any address (no device-region registry)</td>
+<td><strong>Closed in v0.6 (P2):</strong> device-region registry landed (<code>RegionTable</code>, <code>register_region</code>/<code>_region</code> accessors); the DeviceManager publishes every ingested DTB device range at discovery time. Early-boot UART/GIC keep the verified hardcoded constants by design</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td><code>mmu.rs</code>/VMM</td>
+<td>Single shared TTBR0 space, no kernel-VA reservation in <code>VMM::map</code></td>
+<td>Must be fixed (TTBR1 split or reserved ranges) <strong>before</strong> EL0 ships; tracked as gate in roadmap P3</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td><code>page_table.rs</code></td>
+<td><code>map_range</code> has no rollback on mid-range failure (orphan mappings)</td>
+<td>Host-tested API rework planned with the VMM rework</td>
+</tr>
+<tr>
+<td>LOW</td>
+<td><code>mmu.rs</code></td>
+<td>TCR.IPS defaults to 32-bit PA; regions beyond the programmed PA size not rejected</td>
+<td>QEMU virt RAM fits; clip in <code>plan_usable</code> when platforms with &gt;4 GiB arrive</td>
+</tr>
+<tr>
+<td>LOW</td>
+<td><code>arch/context.rs</code></td>
+<td><code>new_task_at</code> entry/stack validation is debug-only</td>
+<td>Promote to runtime checks at first real spawn path</td>
+</tr>
+<tr>
+<td>LOW</td>
+<td><code>ipc/mod.rs</code></td>
+<td>Channels cannot be destroyed (registry exhaustion DoS)</td>
+<td><strong>Closed in v0.6 (P2):</strong> <code>ChannelRegistry::close</code> (owner-only, monotonic never-reused ids); host-tested</td>
+</tr>
+<tr>
+<td>LOW</td>
+<td><code>syscall/mod.rs</code> SPAWN</td>
+<td><code>name_ptr</code> validated but unused; <code>validate_ptr</code> checks null/alignment only</td>
+<td>ABI to be finalised with real user-memory accessors</td>
+</tr>
+<tr>
+<td>—</td>
+<td>Design</td>
+<td>Lower-EL faults/SVC currently fatal-park; caller identity is global, not per-CPU</td>
+<td>Redesign is part of the EL0 milestone gate</td>
+</tr>
+<tr>
+<td>—</td>
+<td>Design</td>
+<td>No IOMMU / <code>ACCESS_PLATFORM</code>: any DMA-capable device can overwrite kernel memory</td>
+<td>virtio <code>ACCESS_PLATFORM</code> feature negotiation planned with DeviceManager</td>
+</tr>
+</tbody>
+</table>
+<h3>3.3 Secret hygiene findings</h3>
+<ul>
+<li><code>android-app/keystore/noxos-preview.jks</code> and <code>android-app/keystore.properties</code>
+  are committed to the repository. This violates the closed-source policy
+  (§ "Protect signing keys"). <strong>Action required (owner):</strong> rotate the
+  keystore, move it out of git, purge from history at the next force-push
+  window. The legacy <code>android-app/</code> (Java preview viewer) itself conflicts
+  with the strict language policy and is kept only as history — see
+  <code>docs/STATUS.md</code>.</li>
+</ul>
+<h2>4. Verification commands</h2>
+<pre><code class="language-sh">make test            # 176+ host unit tests (x86_64 host target)
+make image           # aarch64 dev build
+make smoke           # QEMU boot: DTB → frames → vectors → GIC → MMU(W^X) → syscalls → IRQ ticks
+./tests/qemu_devices.sh  # QEMU device stage: real-DTB discovery, binding, capability model, recovery
+make qemu-graphics   # virtio-gpu scanout + boot/home scenes
+</code></pre>
+<p>Release-profile boot is additionally smoke-verified
+(<code>overflow-checks = true</code> in release).</p></article>
+</main>
+<footer class="site"><div class="bar">
+NoxOS - independent Rust kernel - verified in QEMU sandbox (virt) - docs site
+</div></footer>
+</body></html>

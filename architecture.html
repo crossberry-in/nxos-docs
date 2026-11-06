@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Architecture - NoxOS Docs</title>
+<link rel="stylesheet" href="assets/style.css"></head>
+<body>
+<header class="site"><div class="bar">
+<a class="brand" href="index.html"><svg class="logo" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><defs><mask id="m"><rect width="32" height="32" fill="white"/><circle cx="20" cy="14" r="9" fill="black"/></mask></defs><circle cx="14" cy="16" r="11" fill="url(#g)" mask="url(#m"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4b5fd"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg><span>NoxOS&nbsp;Docs</span></a>
+<nav class="links"><a href="overview.html" class="">Overview</a><a href="architecture.html" class="on">Architecture</a><a href="boot.html" class="">Boot</a><a href="build.html" class="">Build</a><a href="design-system.html" class="">Design System</a><a href="status.html" class="">Status</a><a href="milestones.html" class="">Milestones</a><a href="roadmap.html" class="">Roadmap</a><a href="security.html" class="">Security</a><a href="known-limits.html" class="">Known Limits</a><a href="hardware.html" class="">Hardware Deps</a><a href="analysis.html" class="">Analysis</a><a href="privacy.html" class="">Privacy</a></nav>
+</div></header>
+<main>
+<article class="prose"><h1>NoxOS architecture v0.2</h1>
+<p>NoxOS is an independent AArch64 operating-system research project. This
+document describes the architecture as implemented in v0.2 and the
+security invariants enforced by the code.</p>
+<h2>Kernel boundary</h2>
+<p>The privileged kernel (EL1) owns:
+- exception entry/return and interrupt dispatch (v0.2: implemented)
+- physical and virtual memory management (v0.2: frame allocator,
+  page-table walker, VMM with W^X validation; MMU enabled at boot)
+- scheduler and process address spaces (v0.2: scheduler + kernel-task
+  context switching; user address spaces pending)
+- system-call validation (v0.2: SVC dispatch with argument validation
+  and capability checks; EL0 boundary pending)
+- capability checks and IPC primitives (v0.2: capability-gated channels)</p>
+<p>User-space services should own display composition, audio policy,
+networking, storage policy and device management where the hardware
+access model permits.</p>
+<h2>Boot flow (QEMU virt, verified)</h2>
+<ol>
+<li><code>boot/asm/entry.S</code> — entered at EL1 (QEMU direct ELF boot); enables
+   FP/SIMD access (<code>CPACR_EL1.FPEN</code>, required because the compiler emits
+   NEON for wide copies), installs the 64 KiB boot stack, zeroes <code>.bss</code>,
+   preserves x0 and calls <code>rust_start</code>.</li>
+<li><code>boot/src/main.rs</code> — panic handler + transition into the kernel.</li>
+<li><code>kernel::boot::run</code> — console init, privilege normalisation
+   (<code>ensure_el1</code>, no-op when already at EL1), DTB discovery (x0 contract
+   first, then a RAM scan for the FDT magic because QEMU's ELF path does
+   not pass the pointer), FDT parse (memory regions + reservations),
+   frame allocator, exception vectors, GICv2 + generic timer, identity
+   page-table build, MMU enable, syscall state, scheduler bring-up,
+   IRQ unmask.</li>
+</ol>
+<p>See <code>docs/BOOT.md</code> for the full contract and
+<code>docs/HARDWARE_DEPENDENCIES.md</code> for every constant and its verification
+status.</p>
+<h2>Memory management</h2>
+<ul>
+<li><code>memory::frame</code> — <code>BumpFrameAllocator</code> (boot phase, checked) and
+  <code>BitmapFrameAllocator</code> (free-capable, caller-supplied bitmap).</li>
+<li><code>memory::page_table</code> — hardware-independent descriptor encoding and a
+  walker over a <code>TableProvider</code> trait (identity-mapped provider in the
+  kernel, arena provider in tests). Supports 4 KiB pages and 2 MiB / 1 GiB
+  block descriptors; unmap collapses empty table chains.</li>
+<li><code>memory::vmm</code> — records mappings and enforces W^X and user-page
+  privilege rules before any descriptor is written.</li>
+<li>The boot identity map covers the kernel image (RW+X — per-section
+  W^X split is a pending hardening task), the DTB, usable RAM (RW, XN),
+  and the GIC/UART device windows (Device-nGnRE, XN).</li>
+</ul>
+<h2>Scheduling</h2>
+<p><code>scheduler::RunQueue</code> — 32 fixed priority levels with a bitmap ready
+mask and fixed-capacity FIFO rings per level (no heap). <code>tick()</code> rotates
+the running task for round-robin fairness; <code>block</code>/<code>wake</code>/<code>exit</code> manage
+state. The v0.1 <code>Scheduler</code> trait and task types are preserved.</p>
+<p><code>arch::context::CpuContext</code> captures the <strong>complete</strong> integer register
+file (x0–x30 + sp, 256 bytes). A cooperative switch therefore restores
+every register, including caller-saved x0–x17, which is required because
+the switch happens at an arbitrary Rust statement where the compiler may
+keep live values in caller-saved registers. <code>clobber_abi("C")</code> plus a
+<code>compiler_fence</code> in the switch routine keep the compiler's view correct;
+the routine deliberately avoids <code>options(noreturn)</code> (see the module
+documentation for the failure mode this avoids).</p>
+<h2>Security invariants</h2>
+<ol>
+<li>Validate all boot-provided pointers and lengths before parsing.
+   (v0.2: FDT parser is fully bounds-checked; DTB magic/size validated.)</li>
+<li>Never map untrusted device memory as executable.
+   (v0.2: device windows are Device-nGnRE + XN by construction.)</li>
+<li>Keep user pages non-privileged and enforce W^X where supported.
+   (v0.2: VMM rejects write+execute and user+execute mappings; the
+   kernel image is mapped RW+X pending per-section split.)</li>
+<li>Validate syscall arguments and IPC message lengths.
+   (v0.2: pointer null/alignment checks, fixed-size messages, unknown
+   syscall numbers rejected, capability checks on the caller.)</li>
+<li>Do not expose raw physical addresses to applications.</li>
+<li>Use capability checks for device/service access.
+   (v0.2: PROCESS_SPAWN / IPC_SEND / IPC_CHANNEL_CREATE gates.)</li>
+<li>Keep a recoverable development environment; do not overwrite device
+   partitions during early bring-up.
+   (v0.2: no flashable image is produced; the boot target is the emulator.)</li>
+</ol>
+<h2>Device support</h2>
+<p>The initial device profile is POCO M6 Pro 5G / Xiaomi Sky family /
+Qualcomm SM4450. The profile is descriptive, not a verified boot
+configuration. No MMIO addresses, kernel load address, UART address, GIC
+base, clock tree, panel timings or touch-controller details are assumed
+for the phone. The QEMU <code>virt</code> platform constants (<code>platform::qemu_virt</code>)
+are the only hardware addresses in the tree and are verified for the
+emulator only.</p></article>
+</main>
+<footer class="site"><div class="bar">
+NoxOS - independent Rust kernel - verified in QEMU sandbox (virt) - docs site
+</div></footer>
+</body></html>
