@@ -1,11 +1,24 @@
 # nxos-docs
 
-Public documentation site for **NoxOS** - an independent no_std Rust kernel for AArch64, verified only inside a QEMU sandbox.
+Full documentation site for **Noxs** — a Debian-optimized Linux environment
+for Android (and its NoxOS emulator track).
 
-- Content and screenshots are generated from the main repository [crossberry-in/NoxOS](https://github.com/crossberry-in/NoxOS) (see `scripts/build_docs_site.py` there).
-- Deployed to GitHub Pages via the included workflow `.github/workflows/deploy-pages.yml` on every push to `main`.
-- All screenshots are genuine QMP screendumps of the running kernel (720x1280 virtio-gpu). Nothing is mocked.
+- 30+ feature pages: Ubuntu setup, terminal UX, NX package system, AI agent,
+  Android integration, Permission Center, security model, plugins, App
+  Center, NoxOS emulator, testing and more.
+- Built with [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/)
+  and deployed to **https://crossberry-in.github.io/nxos-docs/** by
+  `.github/workflows/deploy-pages.yml` on every push to `main`.
+- Content is mirrored from the main repository
+  [crossberry-in/noxs](https://github.com/crossberry-in/noxs) (`docs/` +
+  `mkdocs.yml`, single source of truth).
+- The superseded hand-written HTML pages were removed; the classic QEMU
+  screenshots remain under `screenshots/`.
 
-## Rebuilding the site
+## Rebuilding locally
 
-From the NoxOS repository: `python3 scripts/build_docs_site.py`
+```bash
+pip install "mkdocs-material==9.7.7"
+mkdocs build --strict   # output in site/
+mkdocs serve            # live preview at http://127.0.0.1:8000
+```
