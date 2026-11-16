@@ -37,23 +37,37 @@ Detailed pages are linked; this page is the quick table.
 
 | Command | Purpose |
 |---|---|
-| `noxs help` | Command list |
+| `noxs help` | Full command reference (categorized) |
+| `noxs help <topic>` | Detailed page: `storage`, `setup-storage`, `device`, `code`, `docker`, `files`, `document`, `sms`, `notification`, `share`, `camera`, `clipboard`, `network`, `info`, `status`, `update`, `ubuntu`, `version`, `docs`, `pkg`, `plug`, `ai`, `cert-fix` |
+| `noxs version` | Noxs app version + userspace identity |
+| `noxs docs [topic]` | Open the matching documentation page in the browser and print the URL (offline-friendly fallback) |
 | `noxs status` | Environment health summary |
 | `noxs update` | apt metadata refresh + upgrade |
-| `noxs info` | Session/account/storage facts |
+| `noxs info` | Session/account/storage facts (+ Android group-ID note) |
 | `noxs ubuntu status` | Ubuntu identity + repository report |
 | `noxs code install|start|stop|restart|status [--json]|logs` | code-server lifecycle |
 | `noxs docker install|start|stop|restart|status|info|test` | Docker lifecycle |
 | `noxs storage <command>` | SAF + mount commands — see [storage reference](../android/storage-permissions.md) |
 | `noxs files` | Open the Noxs file browser (Android UI) |
 | `noxs document open|import|export|gallery|picker` | Android document flows |
-| `noxs sms status|permission|send|compose|contacts` | SMS via your own SMS app |
+| `noxs sms status|send|compose|contacts` | SMS via your own SMS app (no SMS permission held) |
 | `noxs device info|battery|storage` | Non-identifying device reports |
 | `noxs notification status|permission|post <title> [body...]` | Notifications |
 | `noxs share <file>` / `noxs share -t <text>` | Android Sharesheet |
 | `noxs camera [dest]` | Camera capture to a file |
 | `noxs clipboard get|set <text>` | Clipboard |
 | `noxs network status` | Transport/metered/validation summary |
+
+### `noxs docs` topics
+
+`ai`, `android`, `api`, `architecture`, `backup`, `cert-fix`, `changelog`,
+`cli`, `code`, `devtools`, `faq`, `files`, `gallery`, `getting-started`,
+`installation`, `kali`, `network`, `notifications`, `packages`,
+`permissions`, `plug`, `rootfs`, `sdcard`, `sdk`, `security`, `storage`,
+`switching`, `terminal`, `troubleshooting`, `ubuntu` — plus the aliases
+`nx`, `commands`, `pkg`, `apt`, `plugins`, `plugin-sdk`, `file-manager`,
+`vpn`. Every topic maps to a real page on this site; unknown topics print
+the valid list.
 
 ## NXMirror Cloud — `nxc`
 
@@ -75,7 +89,10 @@ Detailed pages are linked; this page is the quick table.
 ## Conventions
 
 - Errors print as `noxs: <message>` (stderr) with non-zero exit.
-- Unknown commands: `noxs: unknown command: <cmd> (try: noxs help)`.
+- Unknown commands: `noxs: unknown command: <cmd> (try: noxs help)` plus the
+  documentation base URL.
 - Package operations use stable error codes — see
   [Error codes](error-codes.md).
 - `nx` == `noxs` for every `noxs` command (transparent forwarder).
+- Every help page ends with a verified documentation URL; the
+  `storage`/`grant --direct` flows always point to real pages on this site.

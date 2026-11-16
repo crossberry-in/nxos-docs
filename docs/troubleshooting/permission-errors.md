@@ -58,3 +58,24 @@ Packages get `Denied` for anything the user has not granted;
 `terminal.write` / `terminal.execute` are **never** granted
 automatically — see
 [Permission Center](../android/app-permissions.md#principles).
+
+## "groups: cannot find name for group ID 3003 / 9997 / ..."
+
+**What it is:** cosmetic, expected output inside proot environments.
+
+**Why it appears:** the guest process inherits Android's kernel-level
+supplementary groups — `3003` (`inet`, network access), `9997`
+(`everybody`) and device-specific ids such as `20803`/`50803`. Those GIDs
+exist on Android's side, not in the Ubuntu `/etc/group`, so when a tool
+resolves group names (`groups`, `id`) the lookup prints this note. proot
+fakes the uid via ptrace but supplementary groups pass through unchanged.
+
+**What Noxs does:** no arbitrary group assignments, no modified
+permission semantics — the notes are informational only, and genuine
+permission errors still surface normally. `noxs info` prints a short
+explanation of this in the environment overview.
+
+**What NOT to do:** do not add fake `/etc/group` entries for Android
+GIDs and do not try to drop the groups — neither improves security or
+behavior, and hiding real permission errors would be worse than the
+cosmetic note.

@@ -1,0 +1,113 @@
+# Validate documentation on every PR and push (does NOT deploy — that is
+# deploy-pages.yml's job). Keeps broken links and nav drift out of main.
+
+name: docs-validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Strict MkDocs build + link check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Strict build (fails on broken internal links / missing nav pages)
+        run: mkdocs build --strict --site-dir /tmp/site-validate
+      - name: Internal link sanity check
+        run: |
+          python3 - <<'PY'
+          import pathlib, re, sys
+          docs = pathlib.Path("docs")
+          failures = []
+          checked = 0
+          for md in docs.rglob("*.md"):
+              for link in re.findall(r"\]\(([^)#\s]+\.md)", md.read_text(encoding="utf-8")):
+                  if link.startswith("http://") or link.startswith("https://"):
+                      continue  # external links are out of scope for this check
+                  checked += 1
+                  target = (md.parent / link).resolve()
+                  if not target.is_file():
+                      failures.append(f"{md}: {link}")
+          print(f"internal markdown links checked: {checked}")
+          if failures:
+              print("BROKEN LINKS:", file=sys.stderr)
+              for f in failures:
+                  print(f"  - {f}", file=sys.stderr)
+              sys.exit(1)
+          print("internal links: PASS")
+          PY
+      - name: Route baseline (previous sitemap routes must still exist)
+        run: |
+          python3 - <<'PY'
+          import pathlib, sys
+          # Every route present in the deployed sitemap at audit time must
+          # still have a source page, so Pages never regresses to 404s.
+          baseline = """
+          / /changelog/ /ai/api-keys/ /ai/configuration/ /ai/nx-ai/ /ai/providers/
+          /ai/troubleshooting/ /android/app-permissions/ /android/background-execution/
+          /android/external-sdcard/ /android/file-picker/ /android/gallery/
+          /android/internal-storage/ /android/notifications/ /android/overview/
+          /android/storage-permissions/ /architecture/architecture/ /architecture/bootstrap/
+          /architecture/mirror/ /architecture/noxos-emulator/ /architecture/qemu-android/
+          /architecture/rust-core/ /architecture/security/ /architecture/testing/
+          /architecture/ubuntu-architecture/ /architecture/ubuntu-test-report/
+          /architecture/ui-ux-design-system/ /architecture/unix-sockets/
+          /cli/cert-fix/ /cli/docker/ /cli/noxs/ /cli/nx/ /cli/web-browser/
+          /devtools/code-server/ /devtools/cpp/ /devtools/git/ /devtools/nodejs/
+          /devtools/overview/ /devtools/python/ /devtools/rust/ /devtools/ssh/
+          /devtools/workflows/ /environments/backup-restore/ /environments/environment-switching/
+          /environments/kali-configuration/ /environments/kali-installation/
+          /environments/linux-package-management/ /environments/rootfs-management/
+          /environments/ubuntu-configuration/ /environments/ubuntu-installation/
+          /files/archive-management/ /files/directory-navigation/ /files/file-browser/
+          /files/file-operations/ /files/storage-access/ /files/upload-download/
+          /getting-started/faq/ /getting-started/first-launch/ /getting-started/initial-setup/
+          /getting-started/installation/ /getting-started/introduction/
+          /getting-started/quick-start/ /getting-started/system-requirements/
+          /packages/package-configuration/ /packages/package-init/ /packages/package-install/
+          /packages/package-manager/ /packages/package-registry/ /packages/package-troubleshooting/
+          /packages/package-updates/ /plugins/app-center/ /plugins/app-ecosystem/
+          /plugins/nx-api/ /plugins/nx-installer/ /plugins/plugin-lifecycle/
+          /plugins/plugin-manifest/ /plugins/plugin-sdk/
+          /reference/cli-reference/ /reference/configuration-reference/ /reference/error-codes/
+          /reference/package-manifest/ /reference/plugin-manifest-reference/
+          /reference/sdk-reference/
+          /terminal/command-execution/ /terminal/customization/ /terminal/performance/
+          /terminal/sessions/ /terminal/shell-configuration/ /terminal/shortcuts/
+          /terminal/terminal-interface/
+          /troubleshooting/certificate-errors/ /troubleshooting/common-questions/
+          /troubleshooting/installation-errors/ /troubleshooting/kali-errors/
+          /troubleshooting/network-errors/ /troubleshooting/package-errors/
+          /troubleshooting/permission-errors/ /troubleshooting/storage-errors/
+          /troubleshooting/ubuntu-errors/
+          """
+          routes = [r for r in baseline.split() if r.startswith("/")]
+          docs_path = pathlib.Path("docs")
+          missing = []
+          for route in routes:
+              if route == "/":
+                  if not docs_path.joinpath("index.md").is_file():
+                      missing.append(route)
+                  continue
+              slug = route.rstrip("/").split("/")[-1]
+              if not list(docs_path.glob("**/" + slug + ".md")):
+                  missing.append(route)
+          if missing:
+              print("MISSING ROUTE SOURCES:", file=sys.stderr)
+              for m in missing:
+                  print("  - " + m, file=sys.stderr)
+              sys.exit(1)
+          print(f"route baseline: PASS ({len(routes)} routes)")
+          PY
