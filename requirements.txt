@@ -1,0 +1,2 @@
+# Docs site toolchain (pinned for reproducible strict builds)
+mkdocs-material==9.7.7
