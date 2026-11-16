@@ -1,47 +1,48 @@
-# Noxs documentation — Material for MkDocs (Material Design UI + Material Icons)
-# Standalone docs mirror — deployed to GitHub Pages by
-# .github/workflows/deploy-pages.yml; content synced from
-# the noxs repo docs/ (single source of truth).
+# Noxs documentation — Material for MkDocs
+#
+# Docs site for Noxs (https://github.com/crossberry-in/noxs) — deployed to
+# GitHub Pages by .github/workflows/deploy-pages.yml on every push to main.
 
 site_name: Noxs Docs
 site_description: >-
-  Noxs — a Debian-optimized Linux environment for Android. A real Debian 12
-  userspace with APT, sudo, Unix sockets and a real terminal, inside the
-  Android app sandbox. A small Linux computer in your pocket.
+  Noxs — a real Ubuntu 24.04 Linux environment for Android. A genuine
+  Ubuntu userspace with APT, sudo, Unix sockets and a real terminal,
+  inside the Android app sandbox. A small Linux computer in your pocket.
 site_url: https://crossberry-in.github.io/nxos-docs/
 repo_url: https://github.com/crossberry-in/nxos-docs
 repo_name: crossberry-in/nxos-docs
 edit_uri: edit/main/docs/
+site_author: CrossberryWeb
 
 theme:
   name: material
-  logo: material/console
   favicon: assets/images/favicon.svg
   icon:
+    logo: material/console
     repo: fontawesome/brands/github
   palette:
-    # Material Design light / dark schemes with automatic + manual toggle
+    # Light / dark schemes with automatic + manual toggle
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: white
-      accent: light green
+      accent: indigo
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: black
-      accent: light green
+      accent: indigo
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
-  font:
-    text: Roboto
-    code: Roboto Mono
+  # System font stack (Apple-inspired) is applied in assets/style.css;
+  # Material's Google-Fonts download is disabled by omitting font.text.
   features:
     - navigation.instant
     - navigation.tracking
     - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
     - navigation.top
     - navigation.footer
@@ -51,6 +52,7 @@ theme:
     - content.code.copy
     - content.tabs.link
     - toc.follow
+    - header.autohide
 
 extra:
   generator: false
@@ -58,6 +60,9 @@ extra:
     - icon: material/github
       link: https://github.com/crossberry-in
       name: crossberry-in on GitHub
+
+extra_css:
+  - assets/style.css
 
 copyright: >
   Copyright &copy; CrossberryWeb — Apache-2.0
@@ -86,38 +91,114 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Guides:
-      - Ubuntu setup: UBUNTU-SETUP.md
-      - Terminal UX: TERMINAL-UX.md
-      - Activity Center: ACTIVITY-CENTER.md
-      - Editor (code-server): CODE-SERVER.md
-      - NX Package System: PACKAGES.md
-      - Debian Mirror: MIRROR.md
-      - Certificates & APT repair: CERT-FIX.md
-      - AI Agent Terminal: AI-AGENT.md
-      - Native Browser: WEB-BROWSER.md
-      - Docker: DOCKER.md
+  - Getting Started:
+      - Introduction: getting-started/introduction.md
+      - Installation: getting-started/installation.md
+      - First Launch: getting-started/first-launch.md
+      - Initial Setup: getting-started/initial-setup.md
+      - System Requirements: getting-started/system-requirements.md
+      - Quick Start: getting-started/quick-start.md
+      - FAQ: getting-started/faq.md
+  - Linux Environments:
+      - Ubuntu Installation: environments/ubuntu-installation.md
+      - Ubuntu Configuration: environments/ubuntu-configuration.md
+      - Kali Linux (planned): environments/kali-installation.md
+      - Kali Configuration (planned): environments/kali-configuration.md
+      - Environment Switching: environments/environment-switching.md
+      - Root Filesystem Management: environments/rootfs-management.md
+      - Linux Package Management: environments/linux-package-management.md
+      - Backup and Restore: environments/backup-restore.md
+  - Terminal:
+      - Terminal Interface: terminal/terminal-interface.md
+      - Shell Configuration: terminal/shell-configuration.md
+      - Command Execution: terminal/command-execution.md
+      - Sessions: terminal/sessions.md
+      - Shortcuts & Keyboard: terminal/shortcuts.md
+      - Customization: terminal/customization.md
+      - Performance: terminal/performance.md
+  - NX Command System:
+      - nx — command hub: cli/nx.md
+      - noxs — core CLI: cli/noxs.md
+      - Certificates & APT repair: cli/cert-fix.md
+      - Docker support: cli/docker.md
+      - Native Browser: cli/web-browser.md
+  - Android Integration:
+      - Overview: android/overview.md
+      - Storage Permissions: android/storage-permissions.md
+      - Internal Storage: android/internal-storage.md
+      - External SD Card: android/external-sdcard.md
+      - File Picker & Import/Export: android/file-picker.md
+      - Gallery & Camera: android/gallery.md
+      - Notifications: android/notifications.md
+      - Background Execution: android/background-execution.md
+      - App Permissions: android/app-permissions.md
+  - File Manager:
+      - File Browser: files/file-browser.md
+      - Directory Navigation: files/directory-navigation.md
+      - File Operations: files/file-operations.md
+      - File Upload & Download: files/upload-download.md
+      - Archive Management: files/archive-management.md
+      - Storage Access: files/storage-access.md
+  - Developer Tools:
+      - Overview: devtools/overview.md
+      - Node.js & npm: devtools/nodejs.md
+      - Python: devtools/python.md
+      - Rust: devtools/rust.md
+      - C/C++: devtools/cpp.md
+      - Git: devtools/git.md
+      - SSH: devtools/ssh.md
+      - Code Server: devtools/code-server.md
+      - Development Workflows: devtools/workflows.md
+  - Package Manager:
+      - NX Package System: packages/package-manager.md
+      - Package Initialization: packages/package-init.md
+      - Package Installation: packages/package-install.md
+      - Package Registry: packages/package-registry.md
+      - Package Configuration: packages/package-configuration.md
+      - Package Updates: packages/package-updates.md
+      - Package Troubleshooting: packages/package-troubleshooting.md
+  - AI Integration:
+      - NX AI Agent: ai/nx-ai.md
+      - Configuration: ai/configuration.md
+      - Providers: ai/providers.md
+      - API Keys & Security: ai/api-keys.md
+      - Troubleshooting: ai/troubleshooting.md
+  - Plugin SDK:
+      - Plugin SDK: plugins/plugin-sdk.md
+      - Plugin Manifest: plugins/plugin-manifest.md
+      - Plugin Lifecycle: plugins/plugin-lifecycle.md
+      - "@noxs/nx-api": plugins/nx-api.md
+      - nx-installer: plugins/nx-installer.md
+      - App Center: plugins/app-center.md
+      - Built-in App Ecosystem: plugins/app-ecosystem.md
   - Architecture & Security:
-      - Architecture: ARCHITECTURE.md
-      - Ubuntu architecture (Ubuntu-first): UBUNTU-ARCHITECTURE.md
-      - Bootstrap system: BOOTSTRAP.md
-      - Security model: SECURITY.md
-      - Unix domain sockets: UNIX-SOCKETS.md
-      - Permission Center: PERMISSION-CENTER.md
-      - NX Android Integration: ANDROID-INTEGRATION.md
-      - Rust performance core: RUST-CORE.md
-  - Extending Noxs:
-      - Noxs API (@noxs/nx-api): NX-API.md
-      - Plugin SDK: PLUGIN-SDK.md
-      - nx-installer: NX-INSTALLER.md
-      - App Center: APP-CENTER.md
-      - Built-in App Ecosystem: APP-ECOSYSTEM.md
-  - Design:
-      - UI/UX Design System: UI-UX-DESIGN-SYSTEM.md
-  - NoxOS Emulator:
-      - Integration overview: NOXOS-EMULATOR.md
-      - QEMU on Android (M1): QEMU-ANDROID.md
-  - Development:
-      - Testing & CI: TESTING.md
-      - Ubuntu test report: UBUNTU-TEST-REPORT.md
-      - FAQ: FAQ.md
+      - Architecture: architecture/architecture.md
+      - Ubuntu Architecture: architecture/ubuntu-architecture.md
+      - Bootstrap System: architecture/bootstrap.md
+      - Security Model: architecture/security.md
+      - Unix Domain Sockets: architecture/unix-sockets.md
+      - Mirror Architecture: architecture/mirror.md
+      - Rust Performance Core: architecture/rust-core.md
+      - UI/UX Design System: architecture/ui-ux-design-system.md
+      - Testing & CI: architecture/testing.md
+      - Ubuntu Test Report: architecture/ubuntu-test-report.md
+      - NoxOS Emulator: architecture/noxos-emulator.md
+      - QEMU on Android: architecture/qemu-android.md
+  - Troubleshooting:
+      - Installation Errors: troubleshooting/installation-errors.md
+      - Ubuntu Errors: troubleshooting/ubuntu-errors.md
+      - Kali Errors (planned): troubleshooting/kali-errors.md
+      - Storage Errors: troubleshooting/storage-errors.md
+      - Permission Errors: troubleshooting/permission-errors.md
+      - Package Errors: troubleshooting/package-errors.md
+      - Network Errors: troubleshooting/network-errors.md
+      - Certificate Errors: troubleshooting/certificate-errors.md
+      - Common Questions: troubleshooting/common-questions.md
+  - API Reference:
+      - CLI Reference: reference/cli-reference.md
+      - Configuration Reference: reference/configuration-reference.md
+      - Package Manifest Reference: reference/package-manifest.md
+      - Plugin Manifest Reference: reference/plugin-manifest-reference.md
+      - SDK Reference: reference/sdk-reference.md
+      - Error Codes: reference/error-codes.md
+  - Changelog: changelog.md

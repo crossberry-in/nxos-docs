@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://crossberry-in.github.io/nxos-docs/sitemap.xml
